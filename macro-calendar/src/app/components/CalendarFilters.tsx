@@ -9,12 +9,6 @@ type CalendarFiltersProps = {
   isAuthenticated: boolean;
 };
 
-/**
- * Client component for country and category filter dropdowns.
- * Uses URL search params for state so filters are bookmarkable/shareable.
- * 
- * Mobile responsive: filters stack in a grid layout on small screens.
- */
 export function CalendarFilters({
   countries,
   categories,
@@ -28,7 +22,6 @@ export function CalendarFilters({
   const currentSearch = searchParams.get("search") ?? "";
   const currentWatchlist = searchParams.get("watchlist") === "true";
 
-  // Local state for search input (debounced)
   const [searchValue, setSearchValue] = useState(currentSearch);
 
   const updateFilter = useCallback(
@@ -44,12 +37,10 @@ export function CalendarFilters({
     [router, searchParams]
   );
 
-  // Sync local state when URL changes (e.g., clear filters button)
   useEffect(() => {
     setSearchValue(currentSearch);
   }, [currentSearch]);
 
-  // Debounced search update
   useEffect(() => {
     const timer = setTimeout(() => {
       if (searchValue !== currentSearch) {
@@ -59,105 +50,89 @@ export function CalendarFilters({
     return () => clearTimeout(timer);
   }, [searchValue, currentSearch, updateFilter]);
 
+  const hasFilters = currentCountry || currentCategory || currentSearch || currentWatchlist;
+
   return (
-    <div className="mb-4 grid grid-cols-1 gap-2 sm:flex sm:flex-wrap sm:gap-3">
-      {/* Country filter */}
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor="country-filter"
-          className="min-w-[60px] text-xs font-medium text-zinc-700 dark:text-zinc-300 sm:min-w-0 sm:text-sm"
+    <div className="mb-6 flex flex-wrap items-center gap-2">
+      {/* Search */}
+      <div className="relative flex-1 sm:max-w-xs">
+        <svg
+          className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
         >
-          Country
-        </label>
-        <select
-          id="country-filter"
-          value={currentCountry}
-          onChange={(e) => updateFilter("country", e.target.value)}
-          className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-initial sm:px-3"
-        >
-          <option value="">All countries</option>
-          {countries.map((code) => (
-            <option key={code} value={code}>
-              {code}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Category filter */}
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor="category-filter"
-          className="min-w-[60px] text-xs font-medium text-zinc-700 dark:text-zinc-300 sm:min-w-0 sm:text-sm"
-        >
-          Category
-        </label>
-        <select
-          id="category-filter"
-          value={currentCategory}
-          onChange={(e) => updateFilter("category", e.target.value)}
-          className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 sm:flex-initial sm:px-3"
-        >
-          <option value="">All categories</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
-      </div>
-
-      {/* Search input */}
-      <div className="flex items-center gap-2">
-        <label
-          htmlFor="search-filter"
-          className="min-w-[60px] text-xs font-medium text-zinc-700 dark:text-zinc-300 sm:min-w-0 sm:text-sm"
-        >
-          Search
-        </label>
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth={2}
+            d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+          />
+        </svg>
         <input
           id="search-filter"
           type="text"
           value={searchValue}
           onChange={(e) => setSearchValue(e.target.value)}
-          placeholder="Indicator name..."
-          className="flex-1 rounded-md border border-zinc-300 bg-white px-2 py-1.5 text-sm text-zinc-900 shadow-sm placeholder:text-zinc-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500 dark:border-zinc-600 dark:bg-zinc-800 dark:text-zinc-100 dark:placeholder:text-zinc-500 sm:w-48 sm:flex-initial sm:px-3"
+          placeholder="Search indicators..."
+          className="w-full rounded-lg border border-[#1e2530] bg-[#151921] py-2 pl-9 pr-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
         />
       </div>
 
-      {/* Watchlist toggle - only shown when authenticated */}
+      {/* Country */}
+      <select
+        id="country-filter"
+        value={currentCountry}
+        onChange={(e) => updateFilter("country", e.target.value)}
+        className="rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+      >
+        <option value="">All Countries</option>
+        {countries.map((code) => (
+          <option key={code} value={code}>
+            {code}
+          </option>
+        ))}
+      </select>
+
+      {/* Category */}
+      <select
+        id="category-filter"
+        value={currentCategory}
+        onChange={(e) => updateFilter("category", e.target.value)}
+        className="rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
+      >
+        <option value="">All Categories</option>
+        {categories.map((cat) => (
+          <option key={cat} value={cat}>
+            {cat}
+          </option>
+        ))}
+      </select>
+
+      {/* Watchlist toggle */}
       {isAuthenticated && (
-        <div className="flex items-center gap-2">
-          <label
-            htmlFor="watchlist-toggle"
-            className="flex cursor-pointer items-center gap-2"
-          >
-            <input
-              id="watchlist-toggle"
-              type="checkbox"
-              checked={currentWatchlist}
-              onChange={(e) =>
-                updateFilter("watchlist", e.target.checked ? "true" : "")
-              }
-              className="h-4 w-4 rounded border-zinc-300 text-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-0 dark:border-zinc-600 dark:bg-zinc-800"
-            />
-            <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300 sm:text-sm">
-              My Watchlist
-            </span>
-          </label>
-        </div>
+        <button
+          onClick={() => updateFilter("watchlist", currentWatchlist ? "" : "true")}
+          className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+            currentWatchlist
+              ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
+              : "border-[#1e2530] bg-[#151921] text-zinc-400 hover:text-zinc-200"
+          }`}
+        >
+          ★ Watchlist
+        </button>
       )}
 
-      {/* Clear filters button (only show when filters active) */}
-      {(currentCountry || currentCategory || currentSearch || currentWatchlist) && (
+      {/* Clear */}
+      {hasFilters && (
         <button
           onClick={() => {
             setSearchValue("");
             router.push("/");
           }}
-          className="rounded-md border border-zinc-300 bg-zinc-100 px-2 py-1.5 text-xs text-zinc-700 hover:bg-zinc-200 dark:border-zinc-600 dark:bg-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-600 sm:px-3 sm:text-sm"
+          className="rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
         >
-          Clear filters
+          ✕ Clear
         </button>
       )}
     </div>

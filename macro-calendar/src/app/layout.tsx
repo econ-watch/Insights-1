@@ -25,15 +25,15 @@ export const viewport: Viewport = {
 
 export const metadata: Metadata = {
   title: {
-    default: "Macro Calendar",
-    template: "%s | Macro Calendar",
+    default: "EconWatch — Live Economic Calendar",
+    template: "%s | EconWatch",
   },
-  description: "Public macroeconomic release calendar with searchable historical data",
+  description: "Real-time macroeconomic release calendar. Track GDP, CPI, employment data and central bank decisions across global economies.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Macro Calendar",
+    title: "EconWatch",
   },
   formatDetection: {
     telephone: false,
@@ -43,15 +43,15 @@ export const metadata: Metadata = {
     apple: "/icons/apple-touch-icon.png",
   },
   openGraph: {
-    title: "Macro Calendar",
-    description: "Public macroeconomic release calendar with searchable historical data",
+    title: "EconWatch — Live Economic Calendar",
+    description: "Real-time macroeconomic release calendar. Track GDP, CPI, employment data and central bank decisions across global economies.",
     type: "website",
-    siteName: "Macro Calendar",
+    siteName: "EconWatch",
   },
   twitter: {
     card: "summary",
-    title: "Macro Calendar",
-    description: "Public macroeconomic release calendar with searchable historical data",
+    title: "EconWatch — Live Economic Calendar",
+    description: "Real-time macroeconomic release calendar. Track GDP, CPI, employment data and central bank decisions across global economies.",
   },
 };
 

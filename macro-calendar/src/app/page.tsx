@@ -5,7 +5,7 @@ import { RevisionBadge } from "./components/RevisionBadge";
 import { z } from "zod";
 import Link from "next/link";
 
-// Zod schemas for Supabase response validation
+// --- Zod schemas (unchanged) ---
 const indicatorSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -13,15 +13,13 @@ const indicatorSchema = z.object({
   category: z.string(),
 });
 
-// Supabase returns embedded relations as arrays even for many-to-one relationships.
-// This schema handles both array format (from Supabase) and single object format,
-// transforming arrays to extract the first element.
-const embeddedIndicatorSchema = z.union([
-  indicatorSchema,
-  z.array(indicatorSchema).transform((arr) => arr[0] ?? null),
-]).nullable();
+const embeddedIndicatorSchema = z
+  .union([
+    indicatorSchema,
+    z.array(indicatorSchema).transform((arr) => arr[0] ?? null),
+  ])
+  .nullable();
 
-// Zod schema for revision record validation
 const revisionRecordSchema = z.object({
   previous_actual: z.string(),
   new_actual: z.string(),
@@ -36,9 +34,6 @@ const releaseWithIndicatorSchema = z.object({
   forecast: z.string().nullable(),
   previous: z.string().nullable(),
   revised: z.string().nullable(),
-  // .catch([]) handles null, undefined, or invalid data gracefully.
-  // Unlike .default([]) which only handles undefined, .catch([])
-  // handles any validation failure (e.g., null from database).
   revision_history: z.array(revisionRecordSchema).catch([]),
   indicator: embeddedIndicatorSchema,
 });
@@ -48,36 +43,53 @@ const filterOptionsSchema = z.object({
   categories: z.array(z.string()),
 });
 
-// Type for the joined release with indicator data
 type ReleaseWithIndicator = z.infer<typeof releaseWithIndicatorSchema>;
-
 type FilterOptions = z.infer<typeof filterOptionsSchema>;
-
-type DataResult<T> = 
+type DataResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-/**
- * Fetches distinct country codes and categories from indicators table for filter dropdowns.
- */
+// --- Country flag mapping ---
+const FLAG_MAP: Record<string, string> = {
+  USD: "🇺🇸",
+  EUR: "🇪🇺",
+  GBP: "🇬🇧",
+  JPY: "🇯🇵",
+  CAD: "🇨🇦",
+  AUD: "🇦🇺",
+  NZD: "🇳🇿",
+  CHF: "🇨🇭",
+  CNY: "🇨🇳",
+  INR: "🇮🇳",
+  BRL: "🇧🇷",
+  MXN: "🇲🇽",
+  KR: "🇰🇷",
+  KRW: "🇰🇷",
+  SGD: "🇸🇬",
+  SAR: "🇸🇦",
+  TRY: "🇹🇷",
+  ZAR: "🇿🇦",
+  RUB: "🇷🇺",
+  IDR: "🇮🇩",
+  ARS: "🇦🇷",
+  EU: "🇪🇺",
+};
+
+// --- Data fetchers (unchanged logic) ---
 async function getFilterOptions(): Promise<DataResult<FilterOptions>> {
   const supabase = await createSupabaseServerClient();
-
   const [countriesResult, categoriesResult] = await Promise.all([
     supabase.from("indicators").select("country_code").order("country_code"),
     supabase.from("indicators").select("category").order("category"),
   ]);
 
-  // Check for errors
   if (countriesResult.error || categoriesResult.error) {
-    console.error("Error fetching filter options:", countriesResult.error || categoriesResult.error);
     return {
       success: false,
-      error: "Unable to load filter options. Please check your connection and try again."
+      error: "Unable to load filter options.",
     };
   }
 
-  // Extract unique values
   const countries = [
     ...new Set(
       (countriesResult.data ?? []).map((row) => row.country_code).filter(Boolean)
@@ -89,24 +101,14 @@ async function getFilterOptions(): Promise<DataResult<FilterOptions>> {
     ),
   ];
 
-  // Validate the response with Zod
   try {
     const validated = filterOptionsSchema.parse({ countries, categories });
     return { success: true, data: validated };
-  } catch (zodError) {
-    console.error("Filter options validation failed:", zodError);
-    return {
-      success: false,
-      error: "Received invalid data format from database."
-    };
+  } catch {
+    return { success: false, error: "Invalid filter data." };
   }
 }
 
-/**
- * Fetches releases scheduled within the next 7 days, joined with indicator data.
- * Optionally filters by country_code, category, search, and watchlist.
- * Returns releases ordered by release_at ascending.
- */
 async function getUpcomingReleases(filters: {
   country?: string;
   category?: string;
@@ -115,11 +117,9 @@ async function getUpcomingReleases(filters: {
   userId?: string;
 }): Promise<DataResult<ReleaseWithIndicator[]>> {
   const supabase = await createSupabaseServerClient();
-
   const now = new Date();
   const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
 
-  // If filtering by watchlist, fetch user's watchlist indicator IDs first
   let watchlistIndicatorIds: string[] = [];
   if (filters.watchlistOnly && filters.userId) {
     const { data: watchlistData, error: watchlistError } = await supabase
@@ -128,16 +128,9 @@ async function getUpcomingReleases(filters: {
       .eq("user_id", filters.userId);
 
     if (watchlistError) {
-      console.error("Error fetching watchlist:", watchlistError);
-      return {
-        success: false,
-        error: "Unable to load watchlist data. Please check your connection and try again."
-      };
+      return { success: false, error: "Unable to load watchlist." };
     }
-
-    watchlistIndicatorIds = watchlistData.map(row => row.indicator_id);
-
-    // If watchlist is empty, return empty results early
+    watchlistIndicatorIds = watchlistData.map((row) => row.indicator_id);
     if (watchlistIndicatorIds.length === 0) {
       return { success: true, data: [] };
     }
@@ -146,32 +139,15 @@ async function getUpcomingReleases(filters: {
   let query = supabase
     .from("releases")
     .select(
-      `
-      id,
-      release_at,
-      period,
-      actual,
-      forecast,
-      previous,
-      revised,
-      revision_history,
-      indicator:indicators!inner (
-        id,
-        name,
-        country_code,
-        category
-      )
-    `
+      `id, release_at, period, actual, forecast, previous, revised, revision_history,
+       indicator:indicators!inner (id, name, country_code, category)`
     )
     .gte("release_at", now.toISOString())
     .lte("release_at", thirtyDaysFromNow.toISOString());
 
-  // Apply watchlist filter
   if (filters.watchlistOnly && watchlistIndicatorIds.length > 0) {
     query = query.in("indicator_id", watchlistIndicatorIds);
   }
-
-  // Apply filters on the joined indicators table
   if (filters.country) {
     query = query.eq("indicator.country_code", filters.country);
   }
@@ -179,68 +155,83 @@ async function getUpcomingReleases(filters: {
     query = query.eq("indicator.category", filters.category);
   }
   if (filters.search) {
-    // Case-insensitive search on indicator name using ilike
-    // SQL injection safe: Supabase uses parameterized queries internally,
-    // treating the search string as a literal value, not executable SQL
     query = query.ilike("indicator.name", `%${filters.search}%`);
   }
 
   const { data, error } = await query.order("release_at", { ascending: true });
 
   if (error) {
-    console.error("Error fetching releases:", error);
-    return {
-      success: false,
-      error: "Unable to load calendar data. Please check your connection and try again."
-    };
+    return { success: false, error: "Unable to load calendar data." };
   }
 
-  // Validate the response with Zod
   try {
     const validated = z.array(releaseWithIndicatorSchema).parse(data ?? []);
     return { success: true, data: validated };
-  } catch (zodError) {
-    console.error("Release data validation failed:", zodError);
-    return {
-      success: false,
-      error: "Received invalid data format from database."
-    };
+  } catch {
+    return { success: false, error: "Received invalid data format from database." };
   }
 }
 
-/**
- * Determines release status based on whether actual value exists.
- */
-function getReleaseStatus(actual: string | null): "released" | "scheduled" {
-  return actual ? "released" : "scheduled";
-}
-
-/**
- * Formats release time from ISO8601 string to human-readable format.
- * 
- * Timezone assumptions:
- * - Input: ISO8601 timestamp from Supabase (stored in UTC)
- * - Output: Formatted using en-US locale in the user's browser timezone
- * - The Date constructor automatically converts UTC to local time
- */
-function formatReleaseTime(isoString: string): string {
+// --- Helpers ---
+function formatTime(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: true,
   });
 }
 
+function formatDateHeader(isoString: string): string {
+  const date = new Date(isoString);
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+
+  const isToday = date.toDateString() === today.toDateString();
+  const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+  const formatted = date.toLocaleDateString("en-US", {
+    weekday: "long",
+    month: "short",
+    day: "numeric",
+  });
+
+  if (isToday) return `Today — ${formatted}`;
+  if (isTomorrow) return `Tomorrow — ${formatted}`;
+  return formatted;
+}
+
+function getDateKey(isoString: string): string {
+  return new Date(isoString).toDateString();
+}
+
+function groupByDate(
+  releases: ReleaseWithIndicator[]
+): Map<string, ReleaseWithIndicator[]> {
+  const groups = new Map<string, ReleaseWithIndicator[]>();
+  for (const release of releases) {
+    const key = getDateKey(release.release_at);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key)!.push(release);
+  }
+  return groups;
+}
+
+// --- Page ---
 type PageProps = {
-  searchParams: Promise<{ country?: string; category?: string; search?: string; watchlist?: string }>;
+  searchParams: Promise<{
+    country?: string;
+    category?: string;
+    search?: string;
+    watchlist?: string;
+  }>;
 };
 
 export default async function CalendarPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const user = await getCurrentUser();
-  
+
   const filters = {
     country: params.country,
     category: params.category,
@@ -254,181 +245,202 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     getFilterOptions(),
   ]);
 
-  // Check for errors
   const hasError = !releasesResult.success || !filterOptionsResult.success;
-  const errorMessage = !releasesResult.success 
-    ? releasesResult.error 
-    : !filterOptionsResult.success 
-    ? filterOptionsResult.error 
-    : null;
+  const errorMessage = !releasesResult.success
+    ? releasesResult.error
+    : !filterOptionsResult.success
+      ? filterOptionsResult.error
+      : null;
 
   const releases = releasesResult.success ? releasesResult.data : [];
-  const filterOptions = filterOptionsResult.success 
-    ? filterOptionsResult.data 
+  const filterOptions = filterOptionsResult.success
+    ? filterOptionsResult.data
     : { countries: [], categories: [] };
 
+  const dateGroups = groupByDate(releases);
+
   return (
-    <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950">
-      <main className="mx-auto max-w-5xl px-2 py-4 sm:px-4 sm:py-6">
-        {/* Filters — T022 */}
+    <div className="min-h-screen bg-[#0b0e11]">
+      <main className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
+        {/* Filters */}
         <CalendarFilters
           countries={filterOptions.countries}
           categories={filterOptions.categories}
           isAuthenticated={!!user}
         />
 
-        {/* Search placeholder — T023 */}
-
-        {/* Error message */}
+        {/* Error */}
         {hasError && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 dark:border-red-900/50 dark:bg-red-900/20">
-            <p className="text-sm font-medium text-red-800 dark:text-red-400">
-              {errorMessage}
-            </p>
+          <div className="mb-4 rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+            <p className="text-sm text-red-400">{errorMessage}</p>
           </div>
         )}
 
-        {/* Mobile scroll hint */}
-        <p className="mb-2 text-xs text-zinc-500 dark:text-zinc-400 sm:hidden" aria-hidden="true">
-          Scroll horizontally to see all columns
-        </p>
+        {/* Stats bar */}
+        <div className="mb-4 flex items-center justify-between">
+          <p className="text-xs text-zinc-500">
+            {releases.length} release{releases.length !== 1 ? "s" : ""} in next
+            30 days
+          </p>
+        </div>
 
-        <div className="-mx-2 overflow-x-auto sm:mx-0 sm:rounded-lg sm:border sm:border-zinc-200 sm:dark:border-zinc-800">
-          <div className="inline-block min-w-full align-middle">
-            <div className="overflow-hidden border-y border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900 sm:rounded-lg sm:border-y-0">
-              <table className="min-w-full divide-y divide-zinc-200 dark:divide-zinc-800">
-                <thead className="bg-zinc-50 dark:bg-zinc-800">
-                  <tr>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Time
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Country
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Indicator
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Period
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Actual
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Forecast
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Previous
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Revised
-                    </th>
-                    <th className="px-2 py-2 text-left text-xs font-medium uppercase tracking-wider text-zinc-500 dark:text-zinc-400 sm:px-4 sm:py-3">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
-                  {releases.length === 0 && !hasError ? (
-                    <tr>
-                      <td colSpan={9} className="px-4 py-12 text-center">
-                        <div className="text-zinc-400 dark:text-zinc-500">
-                          <svg
-                            className="mx-auto mb-4 h-12 w-12"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            stroke="currentColor"
-                            aria-hidden="true"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={1.5}
-                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
-                            />
-                          </svg>
-                          <p className="text-sm font-medium text-zinc-600 dark:text-zinc-400">
-                            No upcoming releases
-                          </p>
-                          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-500">
-                            {filters.country || filters.category || filters.search
-                              ? "Try adjusting your filters or search terms."
-                              : "No economic releases scheduled for the next 30 days."}
-                          </p>
-                        </div>
-                      </td>
-                    </tr>
-                  ) : (
-                    releases.map((release) => {
-                      const status = getReleaseStatus(release.actual);
+        {/* Calendar */}
+        {releases.length === 0 && !hasError ? (
+          <div className="flex flex-col items-center justify-center rounded-xl border border-[#1e2530] bg-[#151921] py-20">
+            <div className="mb-4 rounded-full bg-[#1e2530] p-4">
+              <svg
+                className="h-8 w-8 text-zinc-600"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                />
+              </svg>
+            </div>
+            <p className="text-sm font-medium text-zinc-400">
+              No upcoming releases
+            </p>
+            <p className="mt-1 text-xs text-zinc-600">
+              {filters.country || filters.category || filters.search
+                ? "Try adjusting your filters."
+                : "No economic releases scheduled for the next 30 days."}
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Array.from(dateGroups.entries()).map(
+              ([dateKey, dateReleases]) => (
+                <div key={dateKey}>
+                  {/* Date header */}
+                  <div className="mb-2 flex items-center gap-3">
+                    <h2 className="text-sm font-medium text-zinc-300">
+                      {formatDateHeader(dateReleases[0].release_at)}
+                    </h2>
+                    <div className="h-px flex-1 bg-[#1e2530]" />
+                    <span className="text-xs text-zinc-600">
+                      {dateReleases.length}
+                    </span>
+                  </div>
 
-                      return (
-                        <tr
-                          key={release.id}
-                          className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
-                        >
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-900 dark:text-zinc-100 sm:px-4 sm:py-3 sm:text-sm">
-                            {formatReleaseTime(release.release_at)}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400 sm:px-4 sm:py-3 sm:text-sm">
-                            {release.indicator?.country_code ?? "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs font-medium text-zinc-900 dark:text-zinc-100 sm:px-4 sm:py-3 sm:text-sm">
-                            <div className="flex items-center gap-1 sm:gap-2">
-                              {release.indicator ? (
-                                <Link
-                                  href={`/indicator/${release.indicator.id}`}
-                                  className="text-blue-600 hover:underline dark:text-blue-400"
-                                >
-                                  {release.indicator.name}
-                                </Link>
-                              ) : (
-                                "Unknown"
-                              )}
-                              <RevisionBadge revisions={release.revision_history} />
-                            </div>
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400 sm:px-4 sm:py-3 sm:text-sm">
-                            {release.period}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
-                            {release.actual ? (
-                              <span className="font-semibold text-green-700 dark:text-green-400">
-                                {release.actual}
-                              </span>
-                            ) : (
-                              <span className="text-zinc-400 dark:text-zinc-500">—</span>
-                            )}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400 sm:px-4 sm:py-3 sm:text-sm">
-                            {release.forecast ?? "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400 sm:px-4 sm:py-3 sm:text-sm">
-                            {release.previous ?? "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs text-zinc-600 dark:text-zinc-400 sm:px-4 sm:py-3 sm:text-sm">
-                            {release.revised ?? "—"}
-                          </td>
-                          <td className="whitespace-nowrap px-2 py-2 text-xs sm:px-4 sm:py-3 sm:text-sm">
-                            <span
-                              className={`inline-flex rounded-full px-1.5 py-0.5 text-xs font-medium sm:px-2 sm:py-1 ${
-                                status === "released"
-                                  ? "bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400"
-                                  : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400"
+                  {/* Releases table */}
+                  <div className="overflow-hidden rounded-lg border border-[#1e2530] bg-[#151921]">
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b border-[#1e2530] text-left">
+                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Time
+                          </th>
+                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Currency
+                          </th>
+                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Event
+                          </th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Actual
+                          </th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Forecast
+                          </th>
+                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                            Previous
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#1e2530]/50">
+                        {dateReleases.map((release) => {
+                          const hasActual = !!release.actual;
+                          const flag =
+                            FLAG_MAP[
+                              release.indicator?.country_code ?? ""
+                            ] ?? "🌐";
+
+                          return (
+                            <tr
+                              key={release.id}
+                              className={`transition-colors hover:bg-[#1a1f2e] ${
+                                hasActual ? "opacity-60" : ""
                               }`}
                             >
-                              {status}
-                            </span>
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
+                              {/* Time */}
+                              <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-zinc-500">
+                                {formatTime(release.release_at)}
+                              </td>
+
+                              {/* Currency */}
+                              <td className="whitespace-nowrap px-4 py-2.5">
+                                <span className="inline-flex items-center gap-1.5 text-sm">
+                                  <span>{flag}</span>
+                                  <span className="font-medium text-zinc-300">
+                                    {release.indicator?.country_code ?? "—"}
+                                  </span>
+                                </span>
+                              </td>
+
+                              {/* Event name */}
+                              <td className="px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                  {release.indicator ? (
+                                    <Link
+                                      href={`/indicator/${release.indicator.id}`}
+                                      className="text-sm font-medium text-zinc-200 hover:text-blue-400 transition-colors"
+                                    >
+                                      {release.indicator.name}
+                                    </Link>
+                                  ) : (
+                                    <span className="text-sm text-zinc-500">
+                                      Unknown
+                                    </span>
+                                  )}
+                                  <RevisionBadge
+                                    revisions={release.revision_history}
+                                  />
+                                  {release.indicator?.category && (
+                                    <span className="hidden rounded bg-[#1e2530] px-1.5 py-0.5 text-[10px] text-zinc-500 sm:inline">
+                                      {release.indicator.category}
+                                    </span>
+                                  )}
+                                </div>
+                              </td>
+
+                              {/* Actual */}
+                              <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                                {release.actual ? (
+                                  <span className="text-sm font-semibold text-emerald-400">
+                                    {release.actual}
+                                  </span>
+                                ) : (
+                                  <span className="text-sm text-zinc-600">
+                                    —
+                                  </span>
+                                )}
+                              </td>
+
+                              {/* Forecast */}
+                              <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-400">
+                                {release.forecast ?? "—"}
+                              </td>
+
+                              {/* Previous */}
+                              <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-500">
+                                {release.previous ?? "—"}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              )
+            )}
           </div>
-        </div>
+        )}
       </main>
     </div>
   );
