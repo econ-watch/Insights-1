@@ -6,7 +6,7 @@
 -- Create audit_log table
 -- Stores audit trail of admin actions for security and compliance
 CREATE TABLE IF NOT EXISTS audit_log (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     action TEXT NOT NULL CHECK (action IN ('upload', 'role_change', 'delete')),
     resource_type TEXT NOT NULL,

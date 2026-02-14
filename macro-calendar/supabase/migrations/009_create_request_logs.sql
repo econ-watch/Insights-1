@@ -7,7 +7,7 @@
 -- Stores request metadata for abuse detection and security monitoring
 -- Designed for high-volume inserts with minimal columns for performance
 CREATE TABLE IF NOT EXISTS request_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     ip TEXT NOT NULL,
     user_id UUID REFERENCES profiles(id) ON DELETE SET NULL,
     endpoint TEXT NOT NULL,

@@ -17,7 +17,7 @@ WHERE table_name = 'alert_preferences'
 ORDER BY ordinal_position;
 
 -- Expected columns:
--- id (uuid, NO, uuid_generate_v4())
+-- id (uuid, NO, gen_random_uuid())
 -- user_id (uuid, NO, null)
 -- indicator_id (uuid, NO, null)
 -- email_enabled (boolean, NO, false)

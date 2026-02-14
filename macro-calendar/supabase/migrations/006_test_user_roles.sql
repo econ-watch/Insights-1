@@ -16,7 +16,7 @@ WHERE table_name = 'user_roles'
 ORDER BY ordinal_position;
 
 -- Expected columns:
--- id (uuid, NO, uuid_generate_v4())
+-- id (uuid, NO, gen_random_uuid())
 -- user_id (uuid, NO, null)
 -- role (text, NO, null)
 -- granted_at (timestamp with time zone, NO, now())

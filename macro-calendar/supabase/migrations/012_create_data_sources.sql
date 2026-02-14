@@ -7,7 +7,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- Create data_sources table
 CREATE TABLE IF NOT EXISTS data_sources (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL UNIQUE,
     type TEXT NOT NULL CHECK (type IN ('scraper', 'api')),
     base_url TEXT,
@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS data_sources (
 
 -- Create sync_logs table
 CREATE TABLE IF NOT EXISTS sync_logs (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     data_source_id UUID NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
     status TEXT NOT NULL CHECK (status IN ('success', 'partial', 'failed')),
     records_processed INT NOT NULL DEFAULT 0,

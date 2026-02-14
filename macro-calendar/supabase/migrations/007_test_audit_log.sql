@@ -16,7 +16,7 @@ WHERE table_name = 'audit_log'
 ORDER BY ordinal_position;
 
 -- Expected columns:
--- id (uuid, NO, uuid_generate_v4())
+-- id (uuid, NO, gen_random_uuid())
 -- user_id (uuid, YES, null)
 -- action (text, NO, null)
 -- resource_type (text, NO, null)

@@ -16,7 +16,7 @@ WHERE table_name = 'request_logs'
 ORDER BY ordinal_position;
 
 -- Expected columns:
--- id (uuid, NO, uuid_generate_v4())
+-- id (uuid, NO, gen_random_uuid())
 -- ip (text, NO, null)
 -- user_id (uuid, YES, null)
 -- endpoint (text, NO, null)
