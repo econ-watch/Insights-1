@@ -31,7 +31,7 @@ const revisionRecordSchema = z.object({
 const releaseWithIndicatorSchema = z.object({
   id: z.string().uuid(),
   release_at: z.string(),
-  period: z.string(),
+  period: z.string().nullable(),
   actual: z.string().nullable(),
   forecast: z.string().nullable(),
   previous: z.string().nullable(),
