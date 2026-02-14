@@ -1,44 +1,54 @@
-# Roadmap
+# EconWatch — Project Roadmap
 
-**Current focus:** L4 — Data acquisition, mobile app, and advanced analytics.
+## Vision
+A polished, production-grade economic calendar that traders actually want to use daily. Not an MVP — the real thing.
 
-## L0 (Shipped)
-- Public calendar list + search/filter
-- Indicator detail pages with historical table
-- Admin CSV upload (shared-secret)
+## Status
+- **L4 (Data Acquisition):** ✅ Complete
+- **L5 (Product Polish):** 🔄 In Progress — one thing at a time, no rushing
 
-## L1 (Shipped)
-- Supabase auth with magic-link sign-in
-- Profiles table with RLS and auto-provisioning
-- Watchlist table + server actions + `/watchlist` page
-- Calendar filter: "My Watchlist"
-- Performance + security polish for admin upload (batching, tests)
+---
 
-## L2 (Shipped)
-- Email alerts for saved indicators (opt-in per indicator)
-- Role-based admin access with audit logging (replace shared secret)
-- Rate limiting and abuse protections for public and watchlist endpoints
-- Revision tracking: show diffs when actual values are revised
-- API key generation for authenticated users
-- Request logging for abuse detection
+## L5 Roadmap — "Actually Done"
 
-## L3 (Shipped)
-- Webhook/push notifications for instant release alerts
-- Full REST API with versioning (/api/v1/)
-- Billing integration with Stripe and usage quotas
-- Multi-tenant admin dashboard with organizations
-- Data export (CSV, JSON, iCal)
+### Phase 1: Trustworthy Data
+- [ ] Verify scraper accuracy — are release dates/times correct?
+- [ ] Add impact ratings (High/Medium/Low) per release
+- [ ] Correct release times (exact scheduled times, not approximations)
+- [ ] Validate indicator names match industry standard naming
+- [ ] Ensure all major USD/EUR/GBP/JPY releases are covered
 
-## L4 (In Progress)
-- Data acquisition: ForexFactory/Investing.com scraping for release schedules
-- Automated data import from API sources (FRED, BLS, ECB, etc.)
-- Mobile app (React Native)
-- Calendar integrations (Google Calendar, Outlook)
-- Historical data API for backtesting
-- Advanced analytics and charting
+### Phase 2: Pro UI/UX
+- [ ] Timezone selector (show times in user's local tz)
+- [ ] Auto-refresh (live updates without manual reload)
+- [ ] Mobile-first polish (test + fix on phone)
+- [ ] Dark/light mode toggle
+- [ ] Week view / day view toggle
+- [ ] Loading states that feel snappy
 
-## L5 (Planned)
-- Custom alert conditions (threshold-based alerts)
-- Machine learning predictions for release values
-- Social features (comments, community watchlists)
-- Broker integrations for trade execution
+### Phase 3: Trader Features
+- [ ] Surprise indicator (actual vs forecast delta, color-coded)
+- [ ] Historical data — past releases + trends
+- [ ] Alerts / notifications ("CPI in 30 min")
+- [ ] Watchlist with auth flow
+- [ ] iCal/Google Calendar export (endpoint exists, needs testing)
+
+### Phase 4: Real-Time
+- [ ] Live actual values when releases drop
+- [ ] Auto-refresh on release time
+- [ ] WebSocket or polling for real-time updates
+
+### Phase 5: Beyond
+- [ ] Custom dashboards
+- [ ] API for external consumers (endpoints exist, need polish)
+- [ ] Charting — historical surprise charts per indicator
+- [ ] Community features? (comments, predictions)
+- [ ] SEO + marketing page
+
+---
+
+## Principles
+- One thing at a time
+- Each piece polished before moving on
+- Data accuracy > features
+- If the data's wrong, nothing else matters

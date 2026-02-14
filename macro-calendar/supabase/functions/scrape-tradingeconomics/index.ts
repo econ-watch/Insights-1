@@ -43,47 +43,45 @@ serve(async (req) => {
     for (const row of Array.from(rows)) {
       try {
         const tr = row as Element;
-        const cells = tr.querySelectorAll("td");
-        
-        if (cells.length < 5) continue; // Skip if not enough columns
 
-        // Extract from data attributes (more reliable than parsing HTML)
-        const countryAttr = tr.getAttribute("data-country") || "";
+        // Extract from data attributes (most reliable)
         const eventAttr = tr.getAttribute("data-event") || "";
         const categoryAttr = tr.getAttribute("data-category") || "";
 
-        // Column 0: Time
-        const timeSpan = cells[0]?.querySelector("span");
+        // Time: first span in first td
+        const timeSpan = tr.querySelector("span.calendar-date-1") || tr.querySelector("td span");
         const timeText = timeSpan?.textContent?.trim() || "";
-        
-        // Column 1: Country ISO code (in nested table)
-        const isoCell = cells[1]?.querySelector("td.calendar-iso");
+
+        // Country: from nested table with calendar-iso class
+        const isoCell = tr.querySelector("td.calendar-iso");
         const countryCode = isoCell?.textContent?.trim() || "";
 
-        // Column 2: Event name
-        const eventSpan = cells[2]?.querySelector("span");
-        let indicatorName = eventSpan?.textContent?.trim() || eventAttr;
-        
-        // Column 3: Actual value
-        const actualSpan = cells[3]?.querySelector("span#actual");
-        const actualValue = actualSpan?.textContent?.trim() || null;
+        // Event name: from the calendar-event link
+        const eventLink = tr.querySelector("a.calendar-event");
+        let indicatorName = eventLink?.textContent?.trim() || eventAttr;
 
-        // Column 4: Previous value
-        const previousSpan = cells[4]?.querySelector("span#previous");
-        const previousValue = previousSpan?.textContent?.trim() || null;
+        // Values: use ID selectors directly on the row (avoids cell index issues from nested tables)
+        const actualEl = tr.querySelector("[id='actual']");
+        const actualValue = actualEl?.textContent?.trim() || null;
 
-        // Column 5: Consensus
-        const consensusSpan = cells[5]?.querySelector("span#consensus");
-        const consensusValue = consensusSpan?.textContent?.trim() || null;
+        const previousEl = tr.querySelector("[id='previous']");
+        const previousValue = previousEl?.textContent?.trim() || null;
 
-        // Column 6: Forecast (if exists)
-        const forecastValue = consensusValue || null;
+        // Consensus and forecast can be <a> or <span> tags
+        const consensusEl = tr.querySelector("[id='consensus']");
+        const consensusValue = consensusEl?.textContent?.trim() || null;
+
+        const forecastEl = tr.querySelector("[id='forecast']");
+        const forecastRaw = forecastEl?.textContent?.trim() || null;
+
+        // Use consensus as primary forecast, fall back to forecast column
+        const forecastValue = consensusValue || forecastRaw || null;
 
         if (!indicatorName || !countryCode || !timeText) continue;
 
-        // Extract period from indicator name if present
-        const periodMatch = indicatorName.match(/\b(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC|Q[1-4])\b/i);
-        const period = periodMatch ? periodMatch[1] : null;
+        // Extract period from calendar-reference span (e.g., "JAN", "Q4")
+        const periodSpan = tr.querySelector("span.calendar-reference");
+        const period = periodSpan?.textContent?.trim() || null;
 
         // Parse time (format: "HH:MM AM/PM")
         const timeMatch = timeText.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
@@ -96,12 +94,13 @@ serve(async (req) => {
         if (ampm === "PM" && hours !== 12) hours += 12;
         if (ampm === "AM" && hours === 12) hours = 0;
 
-        // Get date from class attribute or use current date
-        const dateClass = cells[0]?.getAttribute("class") || "";
-        const dateMatch = dateClass.match(/(\d{4})-(\d{2})-(\d{2})/);
+        // Get date from the time cell's class attribute (e.g., class=' 2026-02-15')
+        const timeTd = tr.querySelector("td[class*='20']");
+        const timeCellClass = timeTd?.getAttribute("class") || "";
+        const dateMatch = timeCellClass.match(/(\d{4}-\d{2}-\d{2})/);
         
         if (dateMatch) {
-          currentDate = new Date(dateMatch[0]);
+          currentDate = new Date(dateMatch[1] + "T00:00:00Z");
         }
 
         const releaseDate = new Date(currentDate);
@@ -195,8 +194,8 @@ serve(async (req) => {
       ])
     );
 
-    // Prepare releases with indicator IDs
-    const releasesToInsert = releases
+    // Prepare releases with indicator IDs, deduplicate by indicator_id + release_at
+    const releasesRaw = releases
       .map(r => {
         const indicatorId = indicatorMap.get(`${r.indicator_name}:${r.country_code}`);
         if (!indicatorId) return null;
@@ -211,6 +210,15 @@ serve(async (req) => {
         };
       })
       .filter(Boolean);
+
+    // Deduplicate: keep last occurrence (most complete data) for each indicator+time pair
+    const deduped = new Map<string, typeof releasesRaw[0]>();
+    for (const r of releasesRaw) {
+      if (!r) continue;
+      const key = `${r.indicator_id}:${r.release_at}`;
+      deduped.set(key, r);
+    }
+    const releasesToInsert = Array.from(deduped.values());
 
     // Bulk insert releases using database function (handles duplicates efficiently)
     const { data: result, error: insertError } = await supabase
@@ -282,32 +290,47 @@ function mapCountryCode(code: string): string {
 function inferCategory(slug: string, name: string): string {
   const lower = `${slug} ${name}`.toLowerCase();
   
-  if (lower.includes("inflation") || lower.includes("cpi") || lower.includes("ppi")) {
+  if (lower.includes("inflation") || lower.includes("cpi") || lower.includes("ppi") || lower.includes("price index") || lower.includes("prices") || lower.includes("deflator")) {
     return "Inflation";
   }
   if (lower.includes("gdp") || lower.includes("growth")) {
     return "GDP & Growth";
   }
-  if (lower.includes("employment") || lower.includes("unemployment") || lower.includes("jobless") || lower.includes("payroll")) {
+  if (lower.includes("employ") || lower.includes("unemploy") || lower.includes("jobless") || lower.includes("payroll") || lower.includes("job") || lower.includes("labor") || lower.includes("labour") || lower.includes("wage") || lower.includes("earnings") || lower.includes("claimant") || lower.includes("personal income")) {
     return "Employment";
   }
-  if (lower.includes("retail") || lower.includes("sales")) {
-    return "Retail & Consumption";
-  }
-  if (lower.includes("rate") || lower.includes("fed") || lower.includes("ecb") || lower.includes("boe") || lower.includes("boj")) {
+  if (lower.includes("rate decision") || lower.includes("interest rate") || lower.includes("fed ") || lower.includes("ecb ") || lower.includes("boe ") || lower.includes("boj ") || lower.includes("central bank") || lower.includes("monetary") || lower.includes("fomc") || lower.includes("minutes") || lower.includes("speech")) {
     return "Monetary Policy";
   }
-  if (lower.includes("trade") || lower.includes("export") || lower.includes("import")) {
+  if (lower.includes("crude oil") || lower.includes("natural gas") || lower.includes("gasoline") || lower.includes("distillate") || lower.includes("heating oil") || lower.includes("refinery") || lower.includes("baker hughes") || lower.includes("rig count") || lower.includes("fuel")) {
+    return "Energy";
+  }
+  if (lower.includes("retail") || lower.includes("consumer spend") || lower.includes("consumer conf") || lower.includes("consumer credit") || lower.includes("personal spend") || lower.includes("car registr") || lower.includes("tourist") || lower.includes("redbook") || lower.includes("sales")) {
+    return "Retail & Consumption";
+  }
+  if (lower.includes("trade") || lower.includes("export") || lower.includes("import") || lower.includes("balance of") || lower.includes("current account")) {
     return "Trade";
   }
-  if (lower.includes("manufacturing") || lower.includes("industrial") || lower.includes("production")) {
+  if (lower.includes("manufactur") || lower.includes("industrial") || lower.includes("production") || lower.includes("factory") || lower.includes("capacity") || lower.includes("durable goods") || lower.includes("machinery order") || lower.includes("goods orders") || lower.includes("wholesale inv")) {
     return "Manufacturing";
   }
-  if (lower.includes("pmi") || lower.includes("business confidence") || lower.includes("sentiment")) {
+  if (lower.includes("pmi") || lower.includes("business conf") || lower.includes("business climate") || lower.includes("sentiment") || lower.includes("survey") || lower.includes("ifo") || lower.includes("zew") || lower.includes("tankan") || lower.includes("michigan") || lower.includes("leading index") || lower.includes("economic activity")) {
     return "Business Surveys";
   }
-  if (lower.includes("housing") || lower.includes("building")) {
+  if (lower.includes("housing") || lower.includes("building") || lower.includes("home") || lower.includes("mortgage") || lower.includes("construction") || lower.includes("mba") || lower.includes("purchase index")) {
     return "Housing";
+  }
+  if (lower.includes("auction") || lower.includes("bond") || lower.includes("treasury") || lower.includes("bill") || lower.includes("yield")) {
+    return "Bonds & Auctions";
+  }
+  if (lower.includes("money supply") || lower.includes("m2") || lower.includes("m3") || lower.includes("lending") || lower.includes("loan") || lower.includes("credit") || lower.includes("bank")) {
+    return "Money & Credit";
+  }
+  if (lower.includes("foreign direct") || lower.includes("capital flow") || lower.includes("tic flow") || lower.includes("securities purchase") || lower.includes("stock investment") || lower.includes("foreign exchange res")) {
+    return "Capital Flows";
+  }
+  if (lower.includes("budget") || lower.includes("debt") || lower.includes("fiscal") || lower.includes("government") || lower.includes("revenue") || lower.includes("spending")) {
+    return "Government";
   }
   
   return "Other";
