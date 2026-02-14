@@ -115,10 +115,38 @@ async function getUpcomingReleases(filters: {
   search?: string;
   watchlistOnly?: boolean;
   userId?: string;
+  view?: string;
 }): Promise<DataResult<ReleaseWithIndicator[]>> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
-  const thirtyDaysFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  
+  // Date range based on view
+  let rangeStart: Date;
+  let rangeEnd: Date;
+  
+  switch (filters.view) {
+    case "past":
+      // Start of year to now
+      rangeStart = new Date(now.getFullYear(), 0, 1);
+      rangeEnd = now;
+      break;
+    case "week": {
+      // Current week (Mon-Sun)
+      const day = now.getDay();
+      const diff = day === 0 ? 6 : day - 1; // Monday = 0
+      rangeStart = new Date(now);
+      rangeStart.setDate(now.getDate() - diff);
+      rangeStart.setHours(0, 0, 0, 0);
+      rangeEnd = new Date(rangeStart);
+      rangeEnd.setDate(rangeStart.getDate() + 6);
+      rangeEnd.setHours(23, 59, 59, 999);
+      break;
+    }
+    default:
+      // Default: past 7 days + next 30 days
+      rangeStart = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      rangeEnd = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  }
 
   let watchlistIndicatorIds: string[] = [];
   if (filters.watchlistOnly && filters.userId) {
@@ -142,8 +170,8 @@ async function getUpcomingReleases(filters: {
       `id, release_at, period, actual, forecast, previous, revised, revision_history,
        indicator:indicators!inner (id, name, country_code, category)`
     )
-    .gte("release_at", now.toISOString())
-    .lte("release_at", thirtyDaysFromNow.toISOString());
+    .gte("release_at", rangeStart.toISOString())
+    .lte("release_at", rangeEnd.toISOString());
 
   if (filters.watchlistOnly && watchlistIndicatorIds.length > 0) {
     query = query.in("indicator_id", watchlistIndicatorIds);
@@ -225,6 +253,7 @@ type PageProps = {
     category?: string;
     search?: string;
     watchlist?: string;
+    view?: string;
   }>;
 };
 
@@ -238,6 +267,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     search: params.search,
     watchlistOnly: params.watchlist === "true",
     userId: user?.id,
+    view: params.view,
   };
 
   const [releasesResult, filterOptionsResult] = await Promise.all([
@@ -279,8 +309,12 @@ export default async function CalendarPage({ searchParams }: PageProps) {
         {/* Stats bar */}
         <div className="mb-4 flex items-center justify-between">
           <p className="text-xs text-zinc-500">
-            {releases.length} release{releases.length !== 1 ? "s" : ""} in next
-            30 days
+            {releases.length} release{releases.length !== 1 ? "s" : ""}
+            {filters.view === "past"
+              ? " since Jan 1"
+              : filters.view === "week"
+                ? " this week"
+                : " — past 7 days + next 30 days"}
           </p>
         </div>
 

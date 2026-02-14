@@ -166,8 +166,6 @@ serve(async (req) => {
             name: r.indicator_name,
             country_code: r.country_code,
             category: r.category,
-            source_name: "TradingEconomics",
-            source_url: "https://tradingeconomics.com/calendar",
           }
         ])
       ).values()
@@ -177,7 +175,7 @@ serve(async (req) => {
       .from("indicators")
       .upsert(uniqueIndicators, {
         onConflict: "name,country_code",
-        ignoreDuplicates: false,
+        ignoreDuplicates: true,
       })
       .select("id,name,country_code");
 

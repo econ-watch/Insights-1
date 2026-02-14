@@ -21,6 +21,7 @@ export function CalendarFilters({
   const currentCategory = searchParams.get("category") ?? "";
   const currentSearch = searchParams.get("search") ?? "";
   const currentWatchlist = searchParams.get("watchlist") === "true";
+  const currentView = searchParams.get("view") ?? "";
 
   const [searchValue, setSearchValue] = useState(currentSearch);
 
@@ -50,10 +51,33 @@ export function CalendarFilters({
     return () => clearTimeout(timer);
   }, [searchValue, currentSearch, updateFilter]);
 
-  const hasFilters = currentCountry || currentCategory || currentSearch || currentWatchlist;
+  const hasFilters = currentCountry || currentCategory || currentSearch || currentWatchlist || currentView;
 
   return (
-    <div className="mb-6 flex flex-wrap items-center gap-2">
+    <div className="mb-6 space-y-3">
+      {/* View toggle */}
+      <div className="flex items-center gap-1 rounded-lg border border-[#1e2530] bg-[#151921] p-1 w-fit">
+        {[
+          { value: "", label: "Default" },
+          { value: "week", label: "This Week" },
+          { value: "past", label: "Year to Date" },
+        ].map((v) => (
+          <button
+            key={v.value}
+            onClick={() => updateFilter("view", v.value)}
+            className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+              currentView === v.value
+                ? "bg-blue-600 text-white"
+                : "text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Filters row */}
+      <div className="flex flex-wrap items-center gap-2">
       {/* Search */}
       <div className="relative flex-1 sm:max-w-xs">
         <svg
@@ -135,6 +159,7 @@ export function CalendarFilters({
           ✕ Clear
         </button>
       )}
+      </div>
     </div>
   );
 }
