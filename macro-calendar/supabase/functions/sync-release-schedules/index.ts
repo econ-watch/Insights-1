@@ -1,6 +1,6 @@
 /**
  * Release Schedule Sync Orchestrator
- * Runs scrapers (ForexFactory primary, Investing.com fallback)
+ * Runs TradingEconomics scraper
  * Triggered by cron daily
  */
 
@@ -22,68 +22,39 @@ serve(async (req) => {
 
     console.log('Starting schedule sync...');
 
-    // Try ForexFactory first
-    let result: any;
-    try {
-      const ffResponse = await fetch(`${supabaseUrl}/functions/v1/scrape-forexfactory`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${serviceRoleKey}`,
-          'Content-Type': 'application/json',
-        },
-      });
+    // Run TradingEconomics scraper
+    const teResponse = await fetch(`${supabaseUrl}/functions/v1/scrape-tradingeconomics`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${serviceRoleKey}`,
+        'Content-Type': 'application/json',
+      },
+    });
 
-      result = await ffResponse.json();
-      
-      if (result.success) {
-        console.log(`ForexFactory success: ${result.releases_inserted} releases`);
-        
-        return new Response(
-          JSON.stringify({
-            success: true,
-            source: 'forexfactory',
-            ...result,
-          }),
-          { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-        );
-      } else {
-        throw new Error('ForexFactory scrape failed');
-      }
-    } catch (ffError) {
-      console.error('ForexFactory failed:', ffError);
-      
-      // Fallback to Investing.com
-      try {
-        const invResponse = await fetch(`${supabaseUrl}/functions/v1/scrape-investing`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${serviceRoleKey}`,
-            'Content-Type': 'application/json',
-          },
-        });
-
-        result = await invResponse.json();
-        
-        if (result.success) {
-          console.log(`Investing.com fallback success: ${result.releases_inserted} releases`);
-          
-          return new Response(
-            JSON.stringify({
-              success: true,
-              source: 'investing_com',
-              fallback: true,
-              ...result,
-            }),
-            { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-          );
-        }
-      } catch (invError) {
-        console.error('Investing.com also failed:', invError);
-        throw new Error('Both scrapers failed');
-      }
+    if (!teResponse.ok) {
+      const errorText = await teResponse.text();
+      console.error(`TradingEconomics HTTP error: ${teResponse.status}`, errorText);
+      throw new Error(`HTTP ${teResponse.status}: ${errorText}`);
     }
 
-    throw new Error('No scraper succeeded');
+    const result = await teResponse.json();
+    console.log('Scraper result:', JSON.stringify(result));
+    
+    if (result.success) {
+      console.log(`TradingEconomics success: ${result.releases_found} releases`);
+      
+      return new Response(
+        JSON.stringify({
+          success: true,
+          source: 'tradingeconomics',
+          ...result,
+        }),
+        { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    } else {
+      console.error('Scraper returned success=false:', result);
+      throw new Error(`TradingEconomics scrape failed: ${result.error || 'Unknown error'}`);
+    }
   } catch (error) {
     console.error('Sync failed:', error);
     return new Response(
