@@ -33,7 +33,9 @@ export function CalendarFilters({
 
   const [searchValue, setSearchValue] = useState(currentSearch);
   const [countryOpen, setCountryOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [categoryOpen, setCategoryOpen] = useState(false);
+  const countryRef = useRef<HTMLDivElement>(null);
+  const categoryRef = useRef<HTMLDivElement>(null);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -61,11 +63,14 @@ export function CalendarFilters({
     [currentCountries, updateFilter]
   );
 
-  // Close dropdown on outside click
+  // Close dropdowns on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+      if (countryRef.current && !countryRef.current.contains(e.target as Node)) {
         setCountryOpen(false);
+      }
+      if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) {
+        setCategoryOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -157,9 +162,9 @@ export function CalendarFilters({
         </div>
 
         {/* Country multi-select dropdown */}
-        <div className="relative" ref={dropdownRef}>
+        <div className="relative" ref={countryRef}>
           <button
-            onClick={() => setCountryOpen(!countryOpen)}
+            onClick={() => { setCountryOpen(!countryOpen); setCategoryOpen(false); }}
             className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 hover:border-zinc-600 transition-colors"
           >
             {currentCountries.length > 0 ? (
@@ -216,19 +221,64 @@ export function CalendarFilters({
           )}
         </div>
 
-        {/* Category */}
-        <select
-          value={currentCategory}
-          onChange={(e) => updateFilter("category", e.target.value)}
-          className="rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
-        >
-          <option value="">All Categories</option>
-          {categories.map((cat) => (
-            <option key={cat} value={cat}>
-              {cat}
-            </option>
-          ))}
-        </select>
+        {/* Category dropdown */}
+        <div className="relative" ref={categoryRef}>
+          <button
+            onClick={() => { setCategoryOpen(!categoryOpen); setCountryOpen(false); }}
+            className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 hover:border-zinc-600 transition-colors"
+          >
+            {currentCategory || "All Categories"}
+            <svg className={`h-4 w-4 text-zinc-500 transition-transform ${categoryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {categoryOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-60 rounded-lg border border-[#1e2530] bg-[#151921] p-2 shadow-xl">
+              <div className="mb-2 px-1">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-600">Select category</span>
+              </div>
+              <div className="max-h-72 overflow-y-auto space-y-0.5">
+                <button
+                  onClick={() => { updateFilter("category", ""); setCategoryOpen(false); }}
+                  className={`flex w-full items-center rounded-md px-2.5 py-2 text-sm transition-colors ${
+                    !currentCategory
+                      ? "bg-blue-500/15 text-blue-400"
+                      : "text-zinc-400 hover:bg-[#1a1f2e] hover:text-zinc-200"
+                  }`}
+                >
+                  All Categories
+                  {!currentCategory && (
+                    <svg className="ml-auto h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                    </svg>
+                  )}
+                </button>
+                {categories.map((cat) => {
+                  const isSelected = currentCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      onClick={() => { updateFilter("category", cat); setCategoryOpen(false); }}
+                      className={`flex w-full items-center rounded-md px-2.5 py-2 text-sm transition-colors ${
+                        isSelected
+                          ? "bg-blue-500/15 text-blue-400"
+                          : "text-zinc-400 hover:bg-[#1a1f2e] hover:text-zinc-200"
+                      }`}
+                    >
+                      {cat}
+                      {isSelected && (
+                        <svg className="ml-auto h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
 
         {isAuthenticated && (
           <button
