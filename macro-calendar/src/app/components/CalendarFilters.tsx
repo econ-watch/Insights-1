@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useEffect } from "react";
+import { useCallback, useState, useEffect, useRef } from "react";
 
 type CalendarFiltersProps = {
   countries: string[];
@@ -13,7 +13,7 @@ const FLAG_MAP: Record<string, string> = {
   USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CAD: "🇨🇦",
   AUD: "🇦🇺", INR: "🇮🇳", BRL: "🇧🇷", MXN: "🇲🇽", ZAR: "🇿🇦",
   SGD: "🇸🇬", SAR: "🇸🇦", TRY: "🇹🇷", IDR: "🇮🇩", KR: "🇰🇷",
-  ARS: "🇦🇷", RUB: "🇷🇺", EU: "🇪🇺",
+  ARS: "🇦🇷", RUB: "🇷🇺",
 };
 
 export function CalendarFilters({
@@ -32,6 +32,8 @@ export function CalendarFilters({
   const hideReleased = searchParams.get("hide") === "released";
 
   const [searchValue, setSearchValue] = useState(currentSearch);
+  const [countryOpen, setCountryOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -59,6 +61,17 @@ export function CalendarFilters({
     [currentCountries, updateFilter]
   );
 
+  // Close dropdown on outside click
+  useEffect(() => {
+    function handleClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setCountryOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, []);
+
   useEffect(() => {
     setSearchValue(currentSearch);
   }, [currentSearch]);
@@ -76,8 +89,8 @@ export function CalendarFilters({
 
   return (
     <div className="mb-6 space-y-3">
-      {/* View toggle + hide released */}
-      <div className="flex flex-wrap items-center gap-3">
+      {/* Row 1: View toggle + hide released */}
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-lg border border-[#1e2530] bg-[#151921] p-1">
           {[
             { value: "", label: "Default" },
@@ -109,42 +122,17 @@ export function CalendarFilters({
           {hideReleased ? "✓ Hiding released" : "Hide released"}
         </button>
 
-        {isAuthenticated && (
-          <button
-            onClick={() => updateFilter("watchlist", currentWatchlist ? "" : "true")}
-            className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
-              currentWatchlist
-                ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
-                : "border-[#1e2530] bg-[#151921] text-zinc-500 hover:text-zinc-300"
-            }`}
-          >
-            ★ Watchlist
-          </button>
-        )}
+        {/* Impact legend */}
+        <div className="hidden items-center gap-3 text-[10px] text-zinc-600 sm:flex ml-auto">
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> High</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> Medium</span>
+          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-zinc-600" /> Low</span>
+        </div>
       </div>
 
-      {/* Country pills (multi-select) */}
-      <div className="flex flex-wrap gap-1.5">
-        {countries.map((code) => {
-          const isSelected = currentCountries.includes(code);
-          return (
-            <button
-              key={code}
-              onClick={() => toggleCountry(code)}
-              className={`rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
-                isSelected
-                  ? "border-blue-500/50 bg-blue-500/15 text-blue-400"
-                  : "border-[#1e2530] bg-[#151921] text-zinc-500 hover:text-zinc-300 hover:border-zinc-600"
-              }`}
-            >
-              {FLAG_MAP[code] ?? ""} {code}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Search + Category + Clear */}
+      {/* Row 2: Search + Country dropdown + Category */}
       <div className="flex flex-wrap items-center gap-2">
+        {/* Search */}
         <div className="relative flex-1 sm:max-w-xs">
           <svg
             className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500"
@@ -160,7 +148,6 @@ export function CalendarFilters({
             />
           </svg>
           <input
-            id="search-filter"
             type="text"
             value={searchValue}
             onChange={(e) => setSearchValue(e.target.value)}
@@ -169,8 +156,68 @@ export function CalendarFilters({
           />
         </div>
 
+        {/* Country multi-select dropdown */}
+        <div className="relative" ref={dropdownRef}>
+          <button
+            onClick={() => setCountryOpen(!countryOpen)}
+            className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 hover:border-zinc-600 transition-colors"
+          >
+            {currentCountries.length > 0 ? (
+              <span className="flex items-center gap-1">
+                <span>{currentCountries.map(c => FLAG_MAP[c] ?? "").join("")}</span>
+                <span className="text-zinc-400">{currentCountries.length} selected</span>
+              </span>
+            ) : (
+              "All Countries"
+            )}
+            <svg className={`h-4 w-4 text-zinc-500 transition-transform ${countryOpen ? "rotate-180" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {countryOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-64 rounded-lg border border-[#1e2530] bg-[#151921] p-2 shadow-xl">
+              <div className="mb-2 flex items-center justify-between px-1">
+                <span className="text-[10px] uppercase tracking-wider text-zinc-600">Select countries</span>
+                {currentCountries.length > 0 && (
+                  <button
+                    onClick={() => updateFilter("country", "")}
+                    className="text-[10px] text-blue-400 hover:text-blue-300"
+                  >
+                    Clear all
+                  </button>
+                )}
+              </div>
+              <div className="grid grid-cols-2 gap-1 max-h-64 overflow-y-auto">
+                {countries.map((code) => {
+                  const isSelected = currentCountries.includes(code);
+                  return (
+                    <button
+                      key={code}
+                      onClick={() => toggleCountry(code)}
+                      className={`flex items-center gap-2 rounded-md px-2.5 py-2 text-sm transition-colors ${
+                        isSelected
+                          ? "bg-blue-500/15 text-blue-400"
+                          : "text-zinc-400 hover:bg-[#1a1f2e] hover:text-zinc-200"
+                      }`}
+                    >
+                      <span className="text-base">{FLAG_MAP[code] ?? "🌐"}</span>
+                      <span className="font-medium">{code}</span>
+                      {isSelected && (
+                        <svg className="ml-auto h-3.5 w-3.5 text-blue-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Category */}
         <select
-          id="category-filter"
           value={currentCategory}
           onChange={(e) => updateFilter("category", e.target.value)}
           className="rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 focus:border-blue-500/50 focus:outline-none focus:ring-1 focus:ring-blue-500/50"
@@ -182,6 +229,19 @@ export function CalendarFilters({
             </option>
           ))}
         </select>
+
+        {isAuthenticated && (
+          <button
+            onClick={() => updateFilter("watchlist", currentWatchlist ? "" : "true")}
+            className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors ${
+              currentWatchlist
+                ? "border-blue-500/50 bg-blue-500/10 text-blue-400"
+                : "border-[#1e2530] bg-[#151921] text-zinc-400 hover:text-zinc-200"
+            }`}
+          >
+            ★ Watchlist
+          </button>
+        )}
 
         {hasFilters && (
           <button

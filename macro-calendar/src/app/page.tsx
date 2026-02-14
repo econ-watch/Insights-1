@@ -11,6 +11,7 @@ const indicatorSchema = z.object({
   name: z.string(),
   country_code: z.string(),
   category: z.string(),
+  impact: z.enum(["low", "medium", "high"]).catch("low"),
 });
 
 const embeddedIndicatorSchema = z
@@ -169,7 +170,7 @@ async function getUpcomingReleases(filters: {
     .from("releases")
     .select(
       `id, release_at, period, actual, forecast, previous, revised, revision_history,
-       indicator:indicators!inner (id, name, country_code, category)`
+       indicator:indicators!inner (id, name, country_code, category, impact)`
     )
     .gte("release_at", rangeStart.toISOString())
     .lte("release_at", rangeEnd.toISOString());
@@ -430,6 +431,17 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                               {/* Event name */}
                               <td className="px-4 py-2.5">
                                 <div className="flex items-center gap-2">
+                                  {/* Impact dot */}
+                                  <span
+                                    className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${
+                                      release.indicator?.impact === "high"
+                                        ? "bg-red-500"
+                                        : release.indicator?.impact === "medium"
+                                          ? "bg-yellow-500"
+                                          : "bg-zinc-600"
+                                    }`}
+                                    title={`${release.indicator?.impact ?? "low"} impact`}
+                                  />
                                   {release.indicator ? (
                                     <Link
                                       href={`/indicator/${release.indicator.id}`}
