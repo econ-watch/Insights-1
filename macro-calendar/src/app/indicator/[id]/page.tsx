@@ -7,7 +7,13 @@ import { WatchlistButton } from "@/app/components/WatchlistButton";
 import { RevisionHistory } from "@/app/components/RevisionHistory";
 import { ExportButton } from "@/app/components/ExportButton";
 
-// Zod schema for indicator validation
+const FLAG_MAP: Record<string, string> = {
+  USD: "🇺🇸", EUR: "🇪🇺", GBP: "🇬🇧", JPY: "🇯🇵", CAD: "🇨🇦",
+  AUD: "🇦🇺", INR: "🇮🇳", BRL: "🇧🇷", MXN: "🇲🇽", ZAR: "🇿🇦",
+  SGD: "🇸🇬", SAR: "🇸🇦", TRY: "🇹🇷", IDR: "🇮🇩", KR: "🇰🇷",
+  ARS: "🇦🇷", RUB: "🇷🇺", EU: "🇪🇺",
+};
+
 const indicatorSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
@@ -17,49 +23,37 @@ const indicatorSchema = z.object({
   source_url: z.string().nullable(),
 });
 
-// Zod schema for revision record validation
 const revisionRecordSchema = z.object({
   previous_actual: z.string(),
   new_actual: z.string(),
   revised_at: z.string(),
 });
 
-// Zod schema for historical release validation
 const releaseSchema = z.object({
   id: z.string().uuid(),
   release_at: z.string(),
-  period: z.string(),
+  period: z.string().nullable(),
   actual: z.string().nullable(),
   forecast: z.string().nullable(),
   previous: z.string().nullable(),
   revised: z.string().nullable(),
   unit: z.string().nullable(),
-  // .catch([]) handles null, undefined, or invalid data gracefully.
-  // Unlike .default([]) which only handles undefined, .catch([])
-  // handles any validation failure (e.g., null from database).
   revision_history: z.array(revisionRecordSchema).catch([]),
 });
 
 type Indicator = z.infer<typeof indicatorSchema>;
 type Release = z.infer<typeof releaseSchema>;
-
 type DataResult<T> =
   | { success: true; data: T }
   | { success: false; error: string };
 
-/**
- * Fetches a single indicator by ID from the database.
- * Returns the indicator data or an error result.
- */
 async function getIndicator(id: string): Promise<DataResult<Indicator>> {
-  // Validate UUID format before querying
   const uuidResult = z.string().uuid().safeParse(id);
   if (!uuidResult.success) {
     return { success: false, error: "Invalid indicator ID format." };
   }
 
   const supabase = await createSupabaseServerClient();
-
   const { data, error } = await supabase
     .from("indicators")
     .select("id, name, country_code, category, source_name, source_url")
@@ -67,37 +61,21 @@ async function getIndicator(id: string): Promise<DataResult<Indicator>> {
     .single();
 
   if (error) {
-    console.error("Error fetching indicator:", error);
     if (error.code === "PGRST116") {
-      // Row not found
       return { success: false, error: "Indicator not found." };
     }
-    return {
-      success: false,
-      error: "Unable to load indicator. Please try again.",
-    };
+    return { success: false, error: "Unable to load indicator." };
   }
 
-  // Validate the response with Zod
   const validated = indicatorSchema.safeParse(data);
   if (!validated.success) {
-    console.error("Indicator validation failed:", validated.error);
-    return {
-      success: false,
-      error: "Received invalid data format from database.",
-    };
+    return { success: false, error: "Invalid data format." };
   }
-
   return { success: true, data: validated.data };
 }
 
-/**
- * Fetches historical releases for an indicator, ordered by release_at descending.
- * Limits to 200 rows per L0 spec (pagination deferred to later milestone).
- */
 async function getHistoricalReleases(indicatorId: string): Promise<DataResult<Release[]>> {
   const supabase = await createSupabaseServerClient();
-
   const { data, error } = await supabase
     .from("releases")
     .select("id, release_at, period, actual, forecast, previous, revised, unit, revision_history")
@@ -106,30 +84,16 @@ async function getHistoricalReleases(indicatorId: string): Promise<DataResult<Re
     .limit(200);
 
   if (error) {
-    console.error("Error fetching historical releases:", error);
-    return {
-      success: false,
-      error: "Unable to load historical releases. Please try again.",
-    };
+    return { success: false, error: "Unable to load releases." };
   }
 
-  // Validate the response with Zod
   const validated = z.array(releaseSchema).safeParse(data ?? []);
   if (!validated.success) {
-    console.error("Releases validation failed:", validated.error);
-    return {
-      success: false,
-      error: "Received invalid data format from database.",
-    };
+    return { success: false, error: "Invalid data format." };
   }
-
   return { success: true, data: validated.data };
 }
 
-/**
- * Formats a release date/time for display.
- * Shows date and time in a readable format.
- */
 function formatReleaseDate(isoString: string): string {
   const date = new Date(isoString);
   return date.toLocaleDateString("en-US", {
@@ -141,36 +105,21 @@ function formatReleaseDate(isoString: string): string {
   });
 }
 
-// Page props type for Next.js dynamic route
 type PageProps = {
   params: Promise<{ id: string }>;
 };
 
-/**
- * Generates dynamic metadata for the indicator detail page.
- * Fetches indicator name and country to create a meaningful page title.
- */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { id } = await params;
   const result = await getIndicator(id);
-
   if (!result.success) {
-    return {
-      title: "Indicator Not Found",
-    };
+    return { title: "Indicator Not Found" };
   }
-
   const indicator = result.data;
-  const title = `${indicator.name} (${indicator.country_code})`;
-  const description = `View historical releases for ${indicator.name} - ${indicator.category} indicator from ${indicator.country_code}`;
-
+  const flag = FLAG_MAP[indicator.country_code] ?? "";
   return {
-    title,
-    description,
-    openGraph: {
-      title: `${title} | Macro Calendar`,
-      description,
-    },
+    title: `${flag} ${indicator.name} (${indicator.country_code})`,
+    description: `Historical releases for ${indicator.name} — ${indicator.category} from ${indicator.country_code}`,
   };
 }
 
@@ -182,18 +131,14 @@ export default async function IndicatorDetailPage({ params }: PageProps) {
     if (result.error === "Indicator not found." || result.error === "Invalid indicator ID format.") {
       notFound();
     }
-    // Show error state for other errors
     return (
-      <main className="min-h-screen bg-gray-50 p-8">
-        <div className="max-w-4xl mx-auto">
-          <Link
-            href="/"
-            className="text-blue-600 hover:underline mb-4 inline-block"
-          >
+      <main className="min-h-screen bg-[#0b0e11] p-6">
+        <div className="mx-auto max-w-4xl">
+          <Link href="/" className="text-blue-400 hover:text-blue-300 text-sm mb-4 inline-block">
             ← Back to Calendar
           </Link>
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-            {result.error}
+          <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3">
+            <p className="text-sm text-red-400">{result.error}</p>
           </div>
         </div>
       </main>
@@ -201,147 +146,174 @@ export default async function IndicatorDetailPage({ params }: PageProps) {
   }
 
   const indicator = result.data;
-  
-  // Fetch historical releases
   const releasesResult = await getHistoricalReleases(id);
+  const flag = FLAG_MAP[indicator.country_code] ?? "🌐";
 
   return (
-    <main className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-4xl mx-auto">
+    <main className="min-h-screen bg-[#0b0e11]">
+      <div className="mx-auto max-w-4xl px-4 py-6 sm:px-6">
         {/* Back link */}
         <Link
           href="/"
-          className="text-blue-600 hover:underline mb-4 inline-block"
+          className="mb-6 inline-flex items-center gap-1 text-sm text-zinc-500 hover:text-zinc-300 transition-colors"
         >
           ← Back to Calendar
         </Link>
 
         {/* Indicator Header */}
-        <header className="bg-white rounded-lg shadow p-6 mb-6">
-          <div className="flex items-start justify-between gap-4 mb-2">
-            <h1 className="text-2xl font-bold text-gray-900">
-              {indicator.name}
-            </h1>
+        <div className="mb-6 rounded-xl border border-[#1e2530] bg-[#151921] p-6">
+          <div className="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-2xl">{flag}</span>
+                <span className="rounded bg-[#1e2530] px-2 py-0.5 text-xs font-medium text-zinc-400">
+                  {indicator.country_code}
+                </span>
+                <span className="rounded bg-[#1e2530] px-2 py-0.5 text-xs text-zinc-500">
+                  {indicator.category}
+                </span>
+              </div>
+              <h1 className="text-xl font-semibold text-white sm:text-2xl">
+                {indicator.name}
+              </h1>
+            </div>
             <WatchlistButton indicatorId={indicator.id} />
           </div>
-          <div className="flex flex-wrap gap-4 text-sm text-gray-600">
-            <div>
-              <span className="font-medium text-gray-700">Country:</span>{" "}
-              {indicator.country_code}
+          
+          {indicator.source_name && (
+            <div className="text-xs text-zinc-500">
+              Source:{" "}
+              {indicator.source_url ? (
+                <a
+                  href={indicator.source_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-blue-400/70 hover:text-blue-400"
+                >
+                  {indicator.source_name}
+                </a>
+              ) : (
+                indicator.source_name
+              )}
             </div>
-            <div>
-              <span className="font-medium text-gray-700">Category:</span>{" "}
-              {indicator.category}
-            </div>
-            {indicator.source_name && (
-              <div>
-                <span className="font-medium text-gray-700">Source:</span>{" "}
-                {indicator.source_url ? (
-                  <a
-                    href={indicator.source_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-blue-600 hover:underline"
-                  >
-                    {indicator.source_name}
-                  </a>
-                ) : (
-                  indicator.source_name
-                )}
-              </div>
-            )}
-          </div>
-        </header>
+          )}
+        </div>
 
-        {/* Historical Releases Table */}
-        <section className="bg-white rounded-lg shadow p-6">
-          <div className="flex flex-wrap items-center justify-between gap-4 mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+        {/* Historical Releases */}
+        <div className="rounded-xl border border-[#1e2530] bg-[#151921]">
+          <div className="flex items-center justify-between border-b border-[#1e2530] px-6 py-4">
+            <h2 className="text-sm font-medium text-zinc-300">
               Historical Releases
             </h2>
             {releasesResult.success && releasesResult.data.length > 0 && (
               <ExportButton
                 downloadUrl={`/api/export/indicators/${indicator.id}`}
-                label="Export History"
+                label="Export"
               />
             )}
           </div>
-          
+
           {!releasesResult.success ? (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-red-800">
-              {releasesResult.error}
+            <div className="px-6 py-8">
+              <p className="text-sm text-red-400">{releasesResult.error}</p>
             </div>
           ) : releasesResult.data.length === 0 ? (
-            <p className="text-gray-500 text-sm">
-              No historical releases available for this indicator.
-            </p>
+            <div className="px-6 py-12 text-center">
+              <p className="text-sm text-zinc-500">No historical releases available.</p>
+            </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-sm">
+              <table className="w-full">
                 <thead>
-                  <tr className="border-b border-gray-200 text-left text-gray-600">
-                    <th className="pb-3 pr-4 font-medium">Date</th>
-                    <th className="pb-3 pr-4 font-medium">Period</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Actual</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Forecast</th>
-                    <th className="pb-3 pr-4 font-medium text-right">Previous</th>
-                    <th className="pb-3 font-medium text-right">Revised</th>
+                  <tr className="border-b border-[#1e2530] text-left">
+                    <th className="px-6 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      Date
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      Actual
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      Forecast
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      Previous
+                    </th>
+                    <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                      Surprise
+                    </th>
                   </tr>
                 </thead>
-                <tbody>
-                  {releasesResult.data.map((release) => (
-                    <tr
-                      key={release.id}
-                      className="border-b border-gray-100 hover:bg-gray-50"
-                    >
-                      <td className="py-3 pr-4 text-gray-600">
-                        {formatReleaseDate(release.release_at)}
-                      </td>
-                      <td className="py-3 pr-4 text-gray-900">
-                        {release.period}
-                      </td>
-                      <td className="py-3 pr-4 text-right">
-                        {release.actual ? (
-                          <span className="font-semibold text-green-700">
-                            {release.actual}
-                            {release.unit && <span className="text-gray-500 font-normal ml-1">{release.unit}</span>}
-                          </span>
-                        ) : (
-                          <span className="text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-600">
-                        {release.forecast ?? "—"}
-                      </td>
-                      <td className="py-3 pr-4 text-right text-gray-600">
-                        {release.previous ?? "—"}
-                      </td>
-                      <td className="py-3 text-right text-gray-600">
-                        {release.revised ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
+                <tbody className="divide-y divide-[#1e2530]/50">
+                  {releasesResult.data.map((release) => {
+                    const surprise = release.actual && release.forecast
+                      ? (parseFloat(release.actual) - parseFloat(release.forecast))
+                      : null;
+                    const surpriseStr = surprise !== null && !isNaN(surprise)
+                      ? (surprise > 0 ? "+" : "") + surprise.toFixed(2)
+                      : null;
+                    const surpriseColor = surprise !== null && !isNaN(surprise)
+                      ? surprise > 0
+                        ? "text-emerald-400"
+                        : surprise < 0
+                          ? "text-red-400"
+                          : "text-zinc-500"
+                      : "text-zinc-600";
+
+                    return (
+                      <tr
+                        key={release.id}
+                        className="transition-colors hover:bg-[#1a1f2e]"
+                      >
+                        <td className="whitespace-nowrap px-6 py-2.5 text-sm text-zinc-400">
+                          {formatReleaseDate(release.release_at)}
+                          {release.period && (
+                            <span className="ml-2 text-xs text-zinc-600">
+                              {release.period}
+                            </span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                          {release.actual ? (
+                            <span className="text-sm font-semibold text-emerald-400">
+                              {release.actual}
+                            </span>
+                          ) : (
+                            <span className="text-sm text-zinc-600">—</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-400">
+                          {release.forecast ?? "—"}
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-500">
+                          {release.previous ?? "—"}
+                        </td>
+                        <td className={`whitespace-nowrap px-4 py-2.5 text-right text-sm font-medium ${surpriseColor}`}>
+                          {surpriseStr ?? "—"}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
               {releasesResult.data.length >= 200 && (
-                <p className="text-gray-500 text-xs mt-4">
+                <p className="border-t border-[#1e2530] px-6 py-3 text-xs text-zinc-600">
                   Showing most recent 200 releases.
                 </p>
               )}
             </div>
           )}
-        </section>
+        </div>
 
-        {/* Revision History Section */}
-        {releasesResult.success && (
-          <section className="bg-white rounded-lg shadow p-6 mt-6">
-            <h2 className="text-lg font-semibold text-gray-900 mb-4">
+        {/* Revision History */}
+        {releasesResult.success && releasesResult.data.some((r) => r.revision_history.length > 0) && (
+          <div className="mt-6 rounded-xl border border-[#1e2530] bg-[#151921] p-6">
+            <h2 className="mb-4 text-sm font-medium text-zinc-300">
               Revision History
             </h2>
             <RevisionHistory
-              revisions={releasesResult.data.flatMap((release) => release.revision_history)}
+              revisions={releasesResult.data.flatMap((r) => r.revision_history)}
             />
-          </section>
+          </div>
         )}
       </div>
     </main>

@@ -110,12 +110,13 @@ async function getFilterOptions(): Promise<DataResult<FilterOptions>> {
 }
 
 async function getUpcomingReleases(filters: {
-  country?: string;
+  countries?: string[];
   category?: string;
   search?: string;
   watchlistOnly?: boolean;
   userId?: string;
   view?: string;
+  hideReleased?: boolean;
 }): Promise<DataResult<ReleaseWithIndicator[]>> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
@@ -176,8 +177,8 @@ async function getUpcomingReleases(filters: {
   if (filters.watchlistOnly && watchlistIndicatorIds.length > 0) {
     query = query.in("indicator_id", watchlistIndicatorIds);
   }
-  if (filters.country) {
-    query = query.eq("indicator.country_code", filters.country);
+  if (filters.countries && filters.countries.length > 0) {
+    query = query.in("indicator.country_code", filters.countries);
   }
   if (filters.category) {
     query = query.eq("indicator.category", filters.category);
@@ -193,7 +194,13 @@ async function getUpcomingReleases(filters: {
   }
 
   try {
-    const validated = z.array(releaseWithIndicatorSchema).parse(data ?? []);
+    let validated = z.array(releaseWithIndicatorSchema).parse(data ?? []);
+    
+    // Client-side filter: hide released events
+    if (filters.hideReleased) {
+      validated = validated.filter((r) => !r.actual);
+    }
+    
     return { success: true, data: validated };
   } catch {
     return { success: false, error: "Received invalid data format from database." };
@@ -254,6 +261,7 @@ type PageProps = {
     search?: string;
     watchlist?: string;
     view?: string;
+    hide?: string;
   }>;
 };
 
@@ -261,13 +269,16 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const user = await getCurrentUser();
 
+  const countries = params.country?.split(",").filter(Boolean) ?? [];
+
   const filters = {
-    country: params.country,
+    countries,
     category: params.category,
     search: params.search,
     watchlistOnly: params.watchlist === "true",
     userId: user?.id,
     view: params.view,
+    hideReleased: params.hide === "released",
   };
 
   const [releasesResult, filterOptionsResult] = await Promise.all([
@@ -340,9 +351,9 @@ export default async function CalendarPage({ searchParams }: PageProps) {
               No upcoming releases
             </p>
             <p className="mt-1 text-xs text-zinc-600">
-              {filters.country || filters.category || filters.search
+              {filters.countries.length > 0 || filters.category || filters.search
                 ? "Try adjusting your filters."
-                : "No economic releases scheduled for the next 30 days."}
+                : "No economic releases scheduled for this period."}
             </p>
           </div>
         ) : (
