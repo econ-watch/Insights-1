@@ -118,6 +118,7 @@ async function getUpcomingReleases(filters: {
   userId?: string;
   view?: string;
   hideReleased?: boolean;
+  impact?: string[];
 }): Promise<DataResult<ReleaseWithIndicator[]>> {
   const supabase = await createSupabaseServerClient();
   const now = new Date();
@@ -180,6 +181,9 @@ async function getUpcomingReleases(filters: {
   }
   if (filters.countries && filters.countries.length > 0) {
     query = query.in("indicator.country_code", filters.countries);
+  }
+  if (filters.impact && filters.impact.length > 0) {
+    query = query.in("indicator.impact", filters.impact);
   }
   if (filters.category) {
     query = query.eq("indicator.category", filters.category);
@@ -263,6 +267,7 @@ type PageProps = {
     watchlist?: string;
     view?: string;
     hide?: string;
+    impact?: string;
   }>;
 };
 
@@ -271,6 +276,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
   const user = await getCurrentUser();
 
   const countries = params.country?.split(",").filter(Boolean) ?? [];
+  const impactLevels = params.impact?.split(",").filter(Boolean) ?? [];
 
   const filters = {
     countries,
@@ -280,6 +286,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     userId: user?.id,
     view: params.view,
     hideReleased: params.hide === "released",
+    impact: impactLevels,
   };
 
   const [releasesResult, filterOptionsResult] = await Promise.all([

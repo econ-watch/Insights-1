@@ -30,6 +30,7 @@ export function CalendarFilters({
   const currentWatchlist = searchParams.get("watchlist") === "true";
   const currentView = searchParams.get("view") ?? "";
   const hideReleased = searchParams.get("hide") === "released";
+  const currentImpact = searchParams.get("impact")?.split(",").filter(Boolean) ?? [];
 
   const [searchValue, setSearchValue] = useState(currentSearch);
   const [countryOpen, setCountryOpen] = useState(false);
@@ -63,6 +64,19 @@ export function CalendarFilters({
     [currentCountries, updateFilter]
   );
 
+  const toggleImpact = useCallback(
+    (level: string) => {
+      const current = new Set(currentImpact);
+      if (current.has(level)) {
+        current.delete(level);
+      } else {
+        current.add(level);
+      }
+      updateFilter("impact", Array.from(current).join(","));
+    },
+    [currentImpact, updateFilter]
+  );
+
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -90,7 +104,7 @@ export function CalendarFilters({
     return () => clearTimeout(timer);
   }, [searchValue, currentSearch, updateFilter]);
 
-  const hasFilters = currentCountries.length > 0 || currentCategory || currentSearch || currentWatchlist || currentView || hideReleased;
+  const hasFilters = currentCountries.length > 0 || currentCategory || currentSearch || currentWatchlist || currentView || hideReleased || currentImpact.length > 0;
 
   return (
     <div className="mb-6 space-y-3">
@@ -127,11 +141,29 @@ export function CalendarFilters({
           {hideReleased ? "✓ Hiding released" : "Hide released"}
         </button>
 
-        {/* Impact legend */}
-        <div className="hidden items-center gap-3 text-[10px] text-zinc-600 sm:flex ml-auto">
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-red-500" /> High</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-yellow-500" /> Medium</span>
-          <span className="flex items-center gap-1"><span className="inline-block h-2 w-2 rounded-full bg-zinc-600" /> Low</span>
+        {/* Impact filter */}
+        <div className="flex items-center gap-1 rounded-lg border border-[#1e2530] bg-[#151921] p-1">
+          {[
+            { value: "high", label: "High", dot: "bg-red-500" },
+            { value: "medium", label: "Med", dot: "bg-yellow-500" },
+            { value: "low", label: "Low", dot: "bg-zinc-600" },
+          ].map((v) => {
+            const isActive = currentImpact.includes(v.value);
+            return (
+              <button
+                key={v.value}
+                onClick={() => toggleImpact(v.value)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  isActive
+                    ? "bg-[#1a1f2e] text-zinc-200"
+                    : "text-zinc-500 hover:text-zinc-300"
+                }`}
+              >
+                <span className={`inline-block h-2 w-2 rounded-full ${v.dot}`} />
+                {v.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
