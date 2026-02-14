@@ -7,11 +7,14 @@ L4 focuses on data acquisition, mobile experience, and advanced analytics.
 
 ## 0) Data Acquisition
 
-- [ ] T400 Add data_sources table
+- [x] T400 Add data_sources table
   - Migration: data_sources(id, name, type, base_url, auth_config, enabled, last_sync_at, created_at)
   - Types: 'scraper', 'api'
   - Store API credentials encrypted in auth_config (JSONB)
   - RLS: admin-only access via service role
+  - Also created sync_logs table for tracking sync operations
+  - TypeScript types in src/lib/types/data-sources.ts
+  - Test seed data includes ForexFactory, Investing.com, FRED, BLS, ECB
   - Test: can create data source; credentials stored securely
 
 - [ ] T401 Add ForexFactory scraper
