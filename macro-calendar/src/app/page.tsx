@@ -445,3 +445,4 @@ export default async function CalendarPage({ searchParams }: PageProps) {
     </div>
   );
 }
+
