@@ -60,6 +60,9 @@ serve(async (req) => {
         const eventLink = tr.querySelector("a.calendar-event");
         let indicatorName = eventLink?.textContent?.trim() || eventAttr;
 
+        // Normalize indicator name to Title Case to avoid duplicates (e.g. "10-year" vs "10-Year")
+        indicatorName = toTitleCase(indicatorName);
+
         // Values: use ID selectors directly on the row (avoids cell index issues from nested tables)
         const actualEl = tr.querySelector("[id='actual']");
         const actualValue = actualEl?.textContent?.trim() || null;
@@ -84,6 +87,8 @@ serve(async (req) => {
         const period = periodSpan?.textContent?.trim() || null;
 
         // Parse time (format: "HH:MM AM/PM")
+        // TradingEconomics returns UTC times by default when no timezone cookie is set.
+        // We verified this by checking US releases (e.g. Core PCE at 1:30 PM UTC).
         const timeMatch = timeText.match(/(\d{1,2}):(\d{2})\s*(AM|PM)/i);
         if (!timeMatch) continue;
         
@@ -332,4 +337,38 @@ function inferCategory(slug: string, name: string): string {
   }
   
   return "Other";
+}
+
+// Convert string to Title Case (e.g. "10-year bund auction" -> "10-Year Bund Auction")
+// Respects common acronyms
+function toTitleCase(str: string): string {
+  const keepUppercase = new Set([
+    "YOY", "MOM", "QOQ", "PMI", "CPI", "GDP", "ADP", "ZEW", "IFO", 
+    "ECB", "BOE", "BOJ", "RBA", "FOMC", "USD", "EUR", "GBP", "JPY", 
+    "CAD", "AUD", "NZD", "CHF", "CNY", "S&P", "HSBC", "HCOB", "JGB", 
+    "OAT", "BTF", "KTB", "UK", "US", "EU", "MBA", "NY", "API", "EIA",
+    "NFIB", "ISM", "JOLTS", "NFP", "TBILL", "T-BILL", "FED", "PCE", "BOC"
+  ]);
+
+  return str.split(' ').map(word => {
+    // Handle "10-year" -> "10-Year"
+    if (word.includes('-')) {
+      return word.split('-').map(part => {
+        const cleanPart = part.replace(/[^a-zA-Z0-9&]/g, '');
+        const upper = cleanPart.toUpperCase();
+        if (keepUppercase.has(upper)) return part.replace(cleanPart, upper);
+        if (cleanPart.length === 0) return part;
+        const titled = cleanPart.charAt(0).toUpperCase() + cleanPart.slice(1).toLowerCase();
+        return part.replace(cleanPart, titled);
+      }).join('-');
+    }
+    
+    const cleanWord = word.replace(/[^a-zA-Z0-9&]/g, '');
+    const upper = cleanWord.toUpperCase();
+    if (keepUppercase.has(upper)) return word.replace(cleanWord, upper);
+    if (cleanWord.length === 0) return word;
+    
+    const titled = cleanWord.charAt(0).toUpperCase() + cleanWord.slice(1).toLowerCase();
+    return word.replace(cleanWord, titled);
+  }).join(' ');
 }

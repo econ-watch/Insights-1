@@ -47,11 +47,20 @@ export const metadata: Metadata = {
     description: "Real-time macroeconomic release calendar. Track GDP, CPI, employment data and central bank decisions across global economies.",
     type: "website",
     siteName: "EconWatch",
+    images: [
+      {
+        url: "/og-image.png",
+        width: 1200,
+        height: 630,
+        alt: "EconWatch Macro Calendar",
+      },
+    ],
   },
   twitter: {
-    card: "summary",
+    card: "summary_large_image",
     title: "EconWatch — Live Economic Calendar",
     description: "Real-time macroeconomic release calendar. Track GDP, CPI, employment data and central bank decisions across global economies.",
+    images: ["/og-image.png"],
   },
 };
 

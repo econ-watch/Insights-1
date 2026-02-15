@@ -316,22 +316,22 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-[#1e2530] text-left">
-                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="px-2 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500 sm:px-4">
                             Time
                           </th>
-                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="px-2 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500 sm:px-4">
                             Currency
                           </th>
-                          <th className="px-4 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="px-2 py-2.5 text-[11px] font-medium uppercase tracking-wider text-zinc-500 sm:px-4">
                             Event
                           </th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="px-2 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500 sm:px-4">
                             Actual
                           </th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="hidden px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500 sm:table-cell">
                             Forecast
                           </th>
-                          <th className="px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500">
+                          <th className="hidden px-4 py-2.5 text-right text-[11px] font-medium uppercase tracking-wider text-zinc-500 md:table-cell">
                             Previous
                           </th>
                         </tr>
@@ -352,12 +352,12 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                               }`}
                             >
                               {/* Time */}
-                              <td className="whitespace-nowrap px-4 py-2.5 font-mono text-xs text-zinc-500">
+                              <td className="whitespace-nowrap px-2 py-2.5 font-mono text-xs text-zinc-500 sm:px-4">
                                 {formatTime(release.release_at, timeZone)}
                               </td>
 
                               {/* Currency */}
-                              <td className="whitespace-nowrap px-4 py-2.5">
+                              <td className="whitespace-nowrap px-2 py-2.5 sm:px-4">
                                 <span className="inline-flex items-center gap-1.5 text-sm">
                                   <span>{flag}</span>
                                   <span className="font-medium text-zinc-300">
@@ -367,7 +367,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                               </td>
 
                               {/* Event name */}
-                              <td className="px-4 py-2.5">
+                              <td className="px-2 py-2.5 sm:px-4">
                                 <div className="flex items-center gap-2">
                                   <span
                                     className={`inline-block h-2 w-2 flex-shrink-0 rounded-full ${
@@ -382,7 +382,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                                   {release.indicator ? (
                                     <Link
                                       href={`/indicator/${release.indicator.id}`}
-                                      className="text-sm font-medium text-zinc-200 hover:text-blue-400 transition-colors"
+                                      className="text-sm font-medium text-zinc-200 hover:text-blue-400 transition-colors line-clamp-2"
                                     >
                                       {release.indicator.name}
                                     </Link>
@@ -398,7 +398,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                               </td>
 
                               {/* Actual */}
-                              <td className="whitespace-nowrap px-4 py-2.5 text-right">
+                              <td className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4">
                                 {release.actual ? (
                                   <span className="text-sm font-semibold text-emerald-400">
                                     {release.actual}
@@ -411,12 +411,12 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                               </td>
 
                               {/* Forecast */}
-                              <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-400">
+                              <td className="hidden whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-400 sm:table-cell">
                                 {release.forecast ?? "—"}
                               </td>
 
                               {/* Previous */}
-                              <td className="whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-500">
+                              <td className="hidden whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-500 md:table-cell">
                                 {release.previous ?? "—"}
                               </td>
                             </tr>
