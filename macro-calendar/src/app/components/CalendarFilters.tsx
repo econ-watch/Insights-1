@@ -16,6 +16,17 @@ const FLAG_MAP: Record<string, string> = {
   ARS: "🇦🇷", RUB: "🇷🇺",
 };
 
+const TIMEZONES = [
+  { value: "UTC", label: "UTC" },
+  { value: "America/New_York", label: "New York (EST/EDT)" },
+  { value: "America/Chicago", label: "Chicago (CST/CDT)" },
+  { value: "America/Los_Angeles", label: "Los Angeles (PST/PDT)" },
+  { value: "Europe/London", label: "London (GMT/BST)" },
+  { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
+  { value: "Asia/Tokyo", label: "Tokyo (JST)" },
+  { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
+];
+
 export function CalendarFilters({
   countries,
   categories,
@@ -31,12 +42,19 @@ export function CalendarFilters({
   const currentView = searchParams.get("view") ?? "";
   const hideReleased = searchParams.get("hide") === "released";
   const currentImpact = searchParams.get("impact")?.split(",").filter(Boolean) ?? [];
+  const currentTz = searchParams.get("tz") ?? "";
 
   const [searchValue, setSearchValue] = useState(currentSearch);
   const [countryOpen, setCountryOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
+  const [tzOpen, setTzOpen] = useState(false);
+  
+  // Auto-refresh state (persisted in localStorage, not URL)
+  const [autoRefresh, setAutoRefresh] = useState(false);
+
   const countryRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
+  const tzRef = useRef<HTMLDivElement>(null);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -46,7 +64,7 @@ export function CalendarFilters({
       } else {
         params.delete(key);
       }
-      router.push(`/?${params.toString()}`);
+      router.push(`/?${params.toString()}`, { scroll: false });
     },
     [router, searchParams]
   );
@@ -77,6 +95,38 @@ export function CalendarFilters({
     [currentImpact, updateFilter]
   );
 
+  // Initialize auto-refresh from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("econwatch_autorefresh");
+    if (saved === "true") setAutoRefresh(true);
+  }, []);
+
+  // Toggle auto-refresh
+  const toggleAutoRefresh = () => {
+    const newState = !autoRefresh;
+    setAutoRefresh(newState);
+    localStorage.setItem("econwatch_autorefresh", String(newState));
+  };
+
+  // Auto-refresh interval
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(() => {
+      router.refresh();
+    }, 60000); // 60s
+    return () => clearInterval(interval);
+  }, [autoRefresh, router]);
+
+  // Auto-detect timezone on first load
+  useEffect(() => {
+    if (!currentTz) {
+      const localTz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      // Check if it's in our supported list, or just use it raw?
+      // For now, let's just set it if it's missing.
+      updateFilter("tz", localTz);
+    }
+  }, [currentTz, updateFilter]);
+
   // Close dropdowns on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
@@ -85,6 +135,9 @@ export function CalendarFilters({
       }
       if (categoryRef.current && !categoryRef.current.contains(e.target as Node)) {
         setCategoryOpen(false);
+      }
+      if (tzRef.current && !tzRef.current.contains(e.target as Node)) {
+        setTzOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClick);
@@ -108,7 +161,7 @@ export function CalendarFilters({
 
   return (
     <div className="mb-6 space-y-3">
-      {/* Row 1: View toggle + hide released */}
+      {/* Row 1: View toggle + TZ + Auto-refresh */}
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-1 rounded-lg border border-[#1e2530] bg-[#151921] p-1">
           {[
@@ -130,7 +183,69 @@ export function CalendarFilters({
           ))}
         </div>
 
+        {/* Timezone Dropdown */}
+        <div className="relative" ref={tzRef}>
+          <button
+            onClick={() => { setTzOpen(!tzOpen); setCountryOpen(false); setCategoryOpen(false); }}
+            className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 transition-colors"
+          >
+            <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            {currentTz ? (currentTz.split("/")[1]?.replace(/_/g, " ") || currentTz) : "Timezone"}
+          </button>
+          
+          {tzOpen && (
+            <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-lg border border-[#1e2530] bg-[#151921] p-1 shadow-xl">
+              <div className="max-h-64 overflow-y-auto space-y-0.5">
+                {TIMEZONES.map((tz) => (
+                  <button
+                    key={tz.value}
+                    onClick={() => { updateFilter("tz", tz.value); setTzOpen(false); }}
+                    className={`flex w-full items-center rounded-md px-2.5 py-2 text-xs transition-colors ${
+                      currentTz === tz.value
+                        ? "bg-blue-500/15 text-blue-400"
+                        : "text-zinc-400 hover:bg-[#1a1f2e] hover:text-zinc-200"
+                    }`}
+                  >
+                    {tz.label}
+                  </button>
+                ))}
+                <button
+                   onClick={() => { 
+                     const local = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                     updateFilter("tz", local); 
+                     setTzOpen(false); 
+                   }}
+                   className="flex w-full items-center rounded-md px-2.5 py-2 text-xs text-zinc-500 hover:bg-[#1a1f2e] hover:text-zinc-300 border-t border-[#1e2530] mt-1 pt-2"
+                >
+                   📍 Use Local Time
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Auto Refresh Toggle */}
         <button
+          onClick={toggleAutoRefresh}
+          className={`ml-auto flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+            autoRefresh
+              ? "border-emerald-500/50 bg-emerald-500/10 text-emerald-400"
+              : "border-[#1e2530] bg-[#151921] text-zinc-500 hover:text-zinc-300"
+          }`}
+        >
+          <span className={`relative flex h-2 w-2`}>
+            {autoRefresh && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>}
+            <span className={`relative inline-flex rounded-full h-2 w-2 ${autoRefresh ? "bg-emerald-500" : "bg-zinc-600"}`}></span>
+          </span>
+          {autoRefresh ? "Live" : "Auto-refresh"}
+        </button>
+      </div>
+
+      {/* Row 2: Hide released + Impact */}
+      <div className="flex flex-wrap items-center gap-2">
+         <button
           onClick={() => updateFilter("hide", hideReleased ? "" : "released")}
           className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
             hideReleased
@@ -167,7 +282,7 @@ export function CalendarFilters({
         </div>
       </div>
 
-      {/* Row 2: Search + Country dropdown + Category */}
+      {/* Row 3: Search + Country + Category */}
       <div className="flex flex-wrap items-center gap-2">
         {/* Search */}
         <div className="relative flex-1 sm:max-w-xs">
@@ -193,10 +308,10 @@ export function CalendarFilters({
           />
         </div>
 
-        {/* Country multi-select dropdown */}
+        {/* Country dropdown */}
         <div className="relative" ref={countryRef}>
           <button
-            onClick={() => { setCountryOpen(!countryOpen); setCategoryOpen(false); }}
+            onClick={() => { setCountryOpen(!countryOpen); setCategoryOpen(false); setTzOpen(false); }}
             className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 hover:border-zinc-600 transition-colors"
           >
             {currentCountries.length > 0 ? (
@@ -256,7 +371,7 @@ export function CalendarFilters({
         {/* Category dropdown */}
         <div className="relative" ref={categoryRef}>
           <button
-            onClick={() => { setCategoryOpen(!categoryOpen); setCountryOpen(false); }}
+            onClick={() => { setCategoryOpen(!categoryOpen); setCountryOpen(false); setTzOpen(false); }}
             className="flex items-center gap-2 rounded-lg border border-[#1e2530] bg-[#151921] px-3 py-2 text-sm text-zinc-300 hover:border-zinc-600 transition-colors"
           >
             {currentCategory || "All Categories"}
