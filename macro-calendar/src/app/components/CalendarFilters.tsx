@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState, useEffect, useRef } from "react";
+import { useCallback, useState, useEffect, useRef, useTransition } from "react";
 
 type CalendarFiltersProps = {
   countries: string[];
@@ -51,10 +51,12 @@ export function CalendarFilters({
   
   // Auto-refresh state (persisted in localStorage, not URL)
   const [autoRefresh, setAutoRefresh] = useState(false);
+  const [isRefreshing, startRefreshingTransition] = useTransition();
 
   const countryRef = useRef<HTMLDivElement>(null);
   const categoryRef = useRef<HTMLDivElement>(null);
   const tzRef = useRef<HTMLDivElement>(null);
+  const refreshInFlightRef = useRef(false);
 
   const updateFilter = useCallback(
     (key: string, value: string) => {
@@ -108,14 +110,28 @@ export function CalendarFilters({
     localStorage.setItem("econwatch_autorefresh", String(newState));
   };
 
+  const triggerRefresh = useCallback(() => {
+    if (refreshInFlightRef.current) return;
+    refreshInFlightRef.current = true;
+
+    startRefreshingTransition(() => {
+      router.refresh();
+    });
+
+    // Avoid deadlock if router refresh errors/stalls
+    window.setTimeout(() => {
+      refreshInFlightRef.current = false;
+    }, 5000);
+  }, [router]);
+
   // Auto-refresh interval
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
-      router.refresh();
+      triggerRefresh();
     }, 60000); // 60s
     return () => clearInterval(interval);
-  }, [autoRefresh, router]);
+  }, [autoRefresh, triggerRefresh]);
 
   // Auto-detect timezone on first load
   useEffect(() => {
@@ -156,6 +172,12 @@ export function CalendarFilters({
     }, 300);
     return () => clearTimeout(timer);
   }, [searchValue, currentSearch, updateFilter]);
+
+  useEffect(() => {
+    if (!isRefreshing) {
+      refreshInFlightRef.current = false;
+    }
+  }, [isRefreshing]);
 
   const hasFilters = currentCountries.length > 0 || currentCategory || currentSearch || currentWatchlist || currentView || hideReleased || currentImpact.length > 0;
 
@@ -241,6 +263,13 @@ export function CalendarFilters({
           </span>
           {autoRefresh ? "Live" : "Auto-refresh"}
         </button>
+
+        {isRefreshing && (
+          <span className="inline-flex items-center gap-1.5 rounded-lg border border-blue-500/30 bg-blue-500/10 px-2.5 py-1.5 text-[11px] font-medium text-blue-300">
+            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-blue-400" />
+            Refreshing…
+          </span>
+        )}
       </div>
 
       {/* Row 2: Hide released + Impact */}
