@@ -12,6 +12,7 @@ export const revalidate = 0;
 const indicatorSchema = z.object({
   id: z.string().uuid(),
   name: z.string(),
+  normalized_name: z.string().nullable().optional(),
   country_code: z.string(),
   category: z.string(),
   impact: z.enum(["low", "medium", "high"]).catch("low"),
@@ -133,7 +134,7 @@ async function getUpcomingReleases(filters: {
     .from("releases")
     .select(
       `id, release_at, period, actual, forecast, previous, revised, revision_history,
-       indicator:indicators!inner (id, name, country_code, category, impact)`
+       indicator:indicators!inner (id, name, normalized_name, country_code, category, impact)`
     )
     .gte("release_at", rangeStart.toISOString())
     .lte("release_at", rangeEnd.toISOString());
@@ -387,7 +388,7 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                                       href={`/indicator/${release.indicator.id}`}
                                       className="text-sm font-medium text-zinc-200 hover:text-blue-400 transition-colors line-clamp-2"
                                     >
-                                      {release.indicator.name}
+                                      {release.indicator.normalized_name || release.indicator.name}
                                     </Link>
                                   ) : (
                                     <span className="text-sm text-zinc-500">
