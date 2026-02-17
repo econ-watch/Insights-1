@@ -23,6 +23,8 @@ const TIMEZONES = [
   { value: "America/Los_Angeles", label: "Los Angeles (PST/PDT)" },
   { value: "Europe/London", label: "London (GMT/BST)" },
   { value: "Europe/Berlin", label: "Berlin (CET/CEST)" },
+  { value: "Asia/Hong_Kong", label: "Hong Kong (HKT)" },
+  { value: "Asia/Singapore", label: "Singapore (SGT)" },
   { value: "Asia/Tokyo", label: "Tokyo (JST)" },
   { value: "Australia/Sydney", label: "Sydney (AEST/AEDT)" },
 ];
