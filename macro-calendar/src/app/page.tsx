@@ -5,6 +5,9 @@ import { RevisionBadge } from "./components/RevisionBadge";
 import { z } from "zod";
 import Link from "next/link";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
 // --- Zod schemas (unchanged) ---
 const indicatorSchema = z.object({
   id: z.string().uuid(),
