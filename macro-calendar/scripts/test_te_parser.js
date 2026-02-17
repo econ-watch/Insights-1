@@ -1,6 +1,6 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 
 const https = require('https');
-const fs = require('fs');
 
 async function fetchCalendar() {
   return new Promise((resolve, reject) => {

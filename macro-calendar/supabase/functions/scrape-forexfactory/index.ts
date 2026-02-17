@@ -55,7 +55,7 @@ serve(async (req) => {
     console.log(`Parsed ${releases.length} releases`);
 
     let inserted = 0;
-    let updated = 0;
+    const updated = 0;
 
     // Process each release
     for (const release of releases) {
