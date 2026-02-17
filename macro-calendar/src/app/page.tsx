@@ -225,6 +225,24 @@ function groupByDate(
   return groups;
 }
 
+function parseNumeric(value: string | null): number | null {
+  if (!value) return null;
+  const cleaned = value.replace(/[^0-9.-]/g, "");
+  if (!cleaned || cleaned === "-" || cleaned === ".") return null;
+  const n = Number.parseFloat(cleaned);
+  return Number.isFinite(n) ? n : null;
+}
+
+function getActualToneClass(actual: string | null, forecast: string | null): string {
+  if (!actual) return "text-zinc-600";
+  const a = parseNumeric(actual);
+  const f = parseNumeric(forecast);
+  if (a === null || f === null) return "text-emerald-400";
+  if (a > f) return "text-emerald-400";
+  if (a < f) return "text-red-400";
+  return "text-zinc-300";
+}
+
 // --- Page ---
 type PageProps = {
   searchParams: Promise<{
@@ -315,8 +333,82 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                     </span>
                   </div>
 
-                  {/* Releases table */}
-                  <div className="overflow-hidden rounded-lg border border-[#1e2530] bg-[#151921]">
+                  {/* Mobile cards */}
+                  <div className="overflow-hidden rounded-lg border border-[#1e2530] bg-[#151921] sm:hidden">
+                    <div className="divide-y divide-[#1e2530]/60">
+                      {dateReleases.map((release) => {
+                        const flag =
+                          FLAG_MAP[release.indicator?.country_code ?? ""] ?? "🌐";
+                        const actualTone = getActualToneClass(
+                          release.actual,
+                          release.forecast
+                        );
+
+                        return (
+                          <div key={release.id} className="px-3 py-3">
+                            <div className="mb-1.5 flex items-center gap-2 text-xs text-zinc-400">
+                              <span className="font-mono text-zinc-500">
+                                {formatTime(release.release_at, timeZone)}
+                              </span>
+                              <span>{flag}</span>
+                              <span className="font-medium text-zinc-300">
+                                {release.indicator?.country_code ?? "—"}
+                              </span>
+                              <span
+                                className={`inline-block h-2 w-2 rounded-full ${
+                                  release.indicator?.impact === "high"
+                                    ? "bg-red-500"
+                                    : release.indicator?.impact === "medium"
+                                      ? "bg-yellow-500"
+                                      : "bg-zinc-600"
+                                }`}
+                                title={`${release.indicator?.impact ?? "low"} impact`}
+                              />
+                            </div>
+
+                            <div className="mb-2 flex items-start gap-2">
+                              {release.indicator ? (
+                                <Link
+                                  href={`/indicator/${release.indicator.id}`}
+                                  className="line-clamp-2 text-sm font-semibold text-zinc-100 hover:text-blue-400 transition-colors"
+                                >
+                                  {release.indicator.normalized_name ||
+                                    release.indicator.name}
+                                </Link>
+                              ) : (
+                                <span className="text-sm text-zinc-500">Unknown</span>
+                              )}
+                              <RevisionBadge revisions={release.revision_history} />
+                            </div>
+
+                            <div className="grid grid-cols-3 gap-1.5 text-[11px]">
+                              <div className="rounded-md border border-[#1e2530] bg-[#10141c] px-2 py-1.5 text-center">
+                                <div className="mb-0.5 text-zinc-500">Actual</div>
+                                <div className={`font-semibold ${actualTone}`}>
+                                  {release.actual ?? "—"}
+                                </div>
+                              </div>
+                              <div className="rounded-md border border-[#1e2530] bg-[#10141c] px-2 py-1.5 text-center">
+                                <div className="mb-0.5 text-zinc-500">Forecast</div>
+                                <div className="font-medium text-zinc-300">
+                                  {release.forecast ?? "—"}
+                                </div>
+                              </div>
+                              <div className="rounded-md border border-[#1e2530] bg-[#10141c] px-2 py-1.5 text-center">
+                                <div className="mb-0.5 text-zinc-500">Prev</div>
+                                <div className="font-medium text-zinc-400">
+                                  {release.previous ?? "—"}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Desktop table */}
+                  <div className="hidden overflow-hidden rounded-lg border border-[#1e2530] bg-[#151921] sm:block">
                     <table className="w-full">
                       <thead>
                         <tr className="border-b border-[#1e2530] text-left">
@@ -344,9 +436,11 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                         {dateReleases.map((release) => {
                           const hasActual = !!release.actual;
                           const flag =
-                            FLAG_MAP[
-                              release.indicator?.country_code ?? ""
-                            ] ?? "🌐";
+                            FLAG_MAP[release.indicator?.country_code ?? ""] ?? "🌐";
+                          const actualTone = getActualToneClass(
+                            release.actual,
+                            release.forecast
+                          );
 
                           return (
                             <tr
@@ -355,12 +449,10 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                                 hasActual ? "opacity-60" : ""
                               }`}
                             >
-                              {/* Time */}
                               <td className="whitespace-nowrap px-2 py-2.5 font-mono text-xs text-zinc-500 sm:px-4">
                                 {formatTime(release.release_at, timeZone)}
                               </td>
 
-                              {/* Currency */}
                               <td className="whitespace-nowrap px-2 py-2.5 sm:px-4">
                                 <span className="inline-flex items-center gap-1.5 text-sm">
                                   <span>{flag}</span>
@@ -370,7 +462,6 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                                 </span>
                               </td>
 
-                              {/* Event name */}
                               <td className="px-2 py-2.5 sm:px-4">
                                 <div className="flex items-center gap-2">
                                   <span
@@ -388,38 +479,32 @@ export default async function CalendarPage({ searchParams }: PageProps) {
                                       href={`/indicator/${release.indicator.id}`}
                                       className="text-sm font-medium text-zinc-200 hover:text-blue-400 transition-colors line-clamp-2"
                                     >
-                                      {release.indicator.normalized_name || release.indicator.name}
+                                      {release.indicator.normalized_name ||
+                                        release.indicator.name}
                                     </Link>
                                   ) : (
                                     <span className="text-sm text-zinc-500">
                                       Unknown
                                     </span>
                                   )}
-                                  <RevisionBadge
-                                    revisions={release.revision_history}
-                                  />
+                                  <RevisionBadge revisions={release.revision_history} />
                                 </div>
                               </td>
 
-                              {/* Actual */}
                               <td className="whitespace-nowrap px-2 py-2.5 text-right sm:px-4">
                                 {release.actual ? (
-                                  <span className="text-sm font-semibold text-emerald-400">
+                                  <span className={`text-sm font-semibold ${actualTone}`}>
                                     {release.actual}
                                   </span>
                                 ) : (
-                                  <span className="text-sm text-zinc-600">
-                                    —
-                                  </span>
+                                  <span className="text-sm text-zinc-600">—</span>
                                 )}
                               </td>
 
-                              {/* Forecast */}
                               <td className="hidden whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-400 sm:table-cell">
                                 {release.forecast ?? "—"}
                               </td>
 
-                              {/* Previous */}
                               <td className="hidden whitespace-nowrap px-4 py-2.5 text-right text-sm text-zinc-500 md:table-cell">
                                 {release.previous ?? "—"}
                               </td>
