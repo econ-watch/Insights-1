@@ -24,10 +24,11 @@ export async function GET() {
       supabase_connected: true,
       env_vars_set: !!process.env.NEXT_PUBLIC_SUPABASE_URL
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json({ 
       status: 'error', 
-      message: error.message 
+      message 
     }, { status: 500 });
   }
 }
