@@ -7,6 +7,7 @@ import { DOMParser, Element } from "https://deno.land/x/deno_dom@v0.1.38/deno-do
 
 interface ReleaseSchedule {
   indicator_name: string;
+  raw_indicator_name: string;
   release_at: string;
   period: string | null;
   country_code: string;
@@ -58,10 +59,11 @@ serve(async (req) => {
 
         // Event name: from the calendar-event link
         const eventLink = tr.querySelector("a.calendar-event");
-        let indicatorName = eventLink?.textContent?.trim() || eventAttr;
+        const rawIndicatorName = eventLink?.textContent?.trim() || eventAttr;
 
-        // Normalize indicator name to Title Case to avoid duplicates (e.g. "10-year" vs "10-Year")
-        indicatorName = toTitleCase(indicatorName);
+        // First clean casing/format, then apply canonical normalization
+        const titleCasedIndicator = toTitleCase(rawIndicatorName);
+        const indicatorName = normalizeIndicatorName(titleCasedIndicator);
 
         // Values: use ID selectors directly on the row (avoids cell index issues from nested tables)
         const actualEl = tr.querySelector("[id='actual']");
@@ -113,6 +115,7 @@ serve(async (req) => {
 
         releases.push({
           indicator_name: indicatorName,
+          raw_indicator_name: titleCasedIndicator,
           release_at: releaseDate.toISOString(),
           period,
           country_code: mapCountryCode(countryCode),
@@ -169,6 +172,8 @@ serve(async (req) => {
           `${r.indicator_name}:${r.country_code}`,
           {
             name: r.indicator_name,
+            raw_name: r.raw_indicator_name,
+            normalized_name: r.indicator_name,
             country_code: r.country_code,
             category: r.category,
           }
@@ -337,6 +342,31 @@ function inferCategory(slug: string, name: string): string {
   }
   
   return "Other";
+}
+
+function normalizeIndicatorName(rawName: string): string {
+  let normalized = rawName.trim();
+
+  const replacements: Array<[RegExp, string]> = [
+    [/\bPpi\b/g, "PPI"],
+    [/\bCpi\b/g, "CPI"],
+    [/\bGdp\b/g, "GDP"],
+    [/\bPce\b/g, "PCE"],
+    [/\bPmi\b/g, "PMI"],
+    [/\bEcb\b/g, "ECB"],
+    [/\bBoe\b/g, "BoE"],
+    [/\bBoj\b/g, "BoJ"],
+    [/\bRba\b/g, "RBA"],
+    [/\bS&p\b/g, "S&P"],
+  ];
+
+  for (const [pattern, replacement] of replacements) {
+    normalized = normalized.replace(pattern, replacement);
+  }
+
+  normalized = normalized.replace(/\s+(YoY|MoM|QoQ)$/, " ($1)");
+
+  return normalized;
 }
 
 // Convert string to Title Case (e.g. "10-year bund auction" -> "10-Year Bund Auction")
