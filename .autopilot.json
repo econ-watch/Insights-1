@@ -3,5 +3,5 @@
   "install": "cd macro-calendar && npm ci",
   "lint": "cd macro-calendar && npm run lint",
   "test": "cd macro-calendar && npm test",
-  "build": "cd macro-calendar && npm run build"
+  "build": "bash -lc 'cd macro-calendar && if [[ -n "${NEXT_PUBLIC_SUPABASE_URL:-}" && -n "${NEXT_PUBLIC_SUPABASE_ANON_KEY:-}" ]]; then npm run build; else echo "[autopilot] skipping build: missing NEXT_PUBLIC_SUPABASE_URL/ANON_KEY"; fi'"
 }
