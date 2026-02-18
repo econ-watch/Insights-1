@@ -1,4 +1,4 @@
-import type { User } from "@supabase/supabase-js";
+import type { UserProfile } from "@/lib/supabase/auth";
 import { createSupabaseServerClient } from "@/lib/supabase/server";
 import { CalendarFilters } from "../components/CalendarFilters";
 import { RevisionBadge } from "../components/RevisionBadge";
@@ -243,7 +243,7 @@ function getActualToneClass(actual: string | null, forecast: string | null): str
 // --- Page ---
 type CalendarViewProps = {
   searchParams: Promise<Record<string, string | undefined>>;
-  user: User;
+  user: UserProfile;
 };
 
 export async function CalendarView({ searchParams, user }: CalendarViewProps) {
